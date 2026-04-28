@@ -1,0 +1,82 @@
+/*////////////////////////////////////////////////////////////////////
+//  Lavaggio Pannelli Solari 31/01/2025                             //
+//                                                                  //
+//  Quadro Comandi (con tastierino e display 20x4)                  //
+//  (ESP32 WROOM1)                                                  //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+//                                                                  //
+////////////////////////////////////////////////////////////////////*/
+
+#include <Wire.h> 
+#include <LiquidCrystal_I2C.h> // https://github.com/johnrickman/LiquidCrystal_I2C
+#include <Keypad.h> // Keypad da Mark Stanley, Alexander Brevig
+#include <EEPROM.h>
+#include <MobaTools.h>
+#include "I2CKeyPad.h"
+#include "MyDef.h"
+
+void setup(){
+
+  lcd.init(); 
+  lcd.backlight();
+
+  Wire.begin();
+  Wire.setClock(400000);
+  if (keyPad.begin() == false)
+  {
+    Serial.println("\nTastiera scollegata\n");
+  }
+
+  //stepper_M1.attachEnable( EnaPin_M1, 10, LOW );  // Commentare per FRENO
+  stepper_M1.attach( StepPin_M1, DirPin_M1 );
+  stepper_M1.setSpeed( 800 );             // 30 rev/min (if stepsPerRev is set correctly)
+  stepper_M1.setRampLen( 400 ); // Ramp length is 1/2 revolution
+
+  //stepper_M2.attachEnable( EnaPin_M2, 10, LOW );  // Commentare per FRENO
+  stepper_M2.attach( StepPin_M2, DirPin_M2 );
+  stepper_M2.setSpeed( 400 );             // 30 rev/min (if stepsPerRev is set correctly)
+  stepper_M2.setRampLen( 200 ); // Ramp length is 1/2 revolution
+
+  pinMode(Error_Driver_M1, INPUT_PULLUP);
+  pinMode(Error_Driver_M2, INPUT_PULLUP);
+  
+  pinMode(Sensore_Zero_M1, INPUT_PULLUP);
+  pinMode(Sensore_Posizione_M1, INPUT_PULLUP);
+  pinMode(Sensore_Posizione_M2, INPUT_PULLUP);
+  
+  digitalWrite(signalPin, HIGH);
+  Serial.begin( 115200 );
+  while ( !Serial )
+  {
+    ; // wait for serial port to connect. Needed for native USB
+  }
+
+  Serial.println( "*********************************************************" );
+  Serial.print( "Arduino - Lavaggio Pannelli Solari - TRASLO -" );
+  Serial.print( __DATE__ );
+  Serial.print( " " );
+  Serial.println( __TIME__ );
+  Serial.println( "*********************************************************" );
+  Homepage();
+  Serial1.begin( 115200 );
+
+}
+
+void loop(){
+  if( ! password()){
+    Test_01();
+    Serial.println( "Fine Test" );
+    Homepage();
+  }
+
+  if (ReadDataFromAntenna()) {
+    if ( parseAntenna() ) esaminaMessaggio();  // esamina messaggio seriale
+  }
+  delay(100);
+}
+
+
