@@ -98,11 +98,10 @@ void setup(){
 
 void loop(){
   //if( ! password()){
-  if( password()){
     Test_01();
     Serial.println( "Fine Test" );
     Homepage();
-  }
+  //}
 
   // Ricevuto messaggio wireless ?
   if (ReadDataFromAntenna()) {
