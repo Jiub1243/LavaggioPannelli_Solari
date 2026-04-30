@@ -43,6 +43,15 @@ ho aggiornato l'assegnazione di Messaggio_OK in ReadDataFromAntenna
 *         06 = Set Set maxCol          xxx = Nuovo valore maxCol
 *                     06   xxx = Valore confermato
 *                     01   009 = Comando non eseguibile
+*
+*         13 = RQST passi_Colonna_M1   001 = Richiesta valore corrente
+*                     13   xxx = passi_Colonna_M1 / 10
+*
+*         14 = RQST passi_Colonna_M2   001 = Richiesta valore corrente
+*                     14   xxx = passi_Colonna_M2 / 10
+*
+*         15 = RQST maxCol             001 = Richiesta valore corrente
+*                     15   xxx = maxCol
 * 
 */
 
@@ -250,8 +259,9 @@ void esaminaMessaggio( void )
   }
 
   if (datiHost.comando == 4) { // Nuovo valore passi_Colonna_M1
-    if (STATO_CORRENTE == 0) {
+    if (STATO_CORRENTE == 0 && datiHost.dato > 0) {
       passi_Colonna_M1 = (long)datiHost.dato * 10;
+      EEPROM.put(EE_ADDR_PASSI_M1, passi_Colonna_M1);
       char buf[6];
       snprintf(buf, sizeof(buf), "04%03u", datiHost.dato);
       spedisciStringa(buf); // conferma
@@ -259,8 +269,9 @@ void esaminaMessaggio( void )
   }
 
   if (datiHost.comando == 5) { // Nuovo valore passi_Colonna_M2
-    if (STATO_CORRENTE == 0) {
+    if (STATO_CORRENTE == 0 && datiHost.dato > 0) {
       passi_Colonna_M2 = (long)datiHost.dato * 10;
+      EEPROM.put(EE_ADDR_PASSI_M2, passi_Colonna_M2);
       char buf[6];
       snprintf(buf, sizeof(buf), "05%03u", datiHost.dato);
       spedisciStringa(buf);
@@ -268,12 +279,33 @@ void esaminaMessaggio( void )
   }
 
   if (datiHost.comando == 6) { // Nuovo valore maxCol
-    if (STATO_CORRENTE == 0) {
+    if (STATO_CORRENTE == 0 && datiHost.dato > 0) {
       maxCol = datiHost.dato;
+      EEPROM.write(EE_ADDR_MAXCOL, maxCol);
       char buf[6];
       snprintf(buf, sizeof(buf), "06%03u", datiHost.dato);
       spedisciStringa(buf);
     } else spedisciStringa("01009");
+  }
+
+  if (datiHost.comando == 13) { // Richiesta passi_Colonna_M1
+    char buf[6];
+    uint16_t val = (uint16_t)(passi_Colonna_M1 / 10);
+    snprintf(buf, sizeof(buf), "13%03u", val);
+    spedisciStringa(buf);
+  }
+
+  if (datiHost.comando == 14) { // Richiesta passi_Colonna_M2
+    char buf[6];
+    uint16_t val = (uint16_t)(passi_Colonna_M2 / 10);
+    snprintf(buf, sizeof(buf), "14%03u", val);
+    spedisciStringa(buf);
+  }
+
+  if (datiHost.comando == 15) { // Richiesta maxCol
+    char buf[6];
+    snprintf(buf, sizeof(buf), "15%03u", maxCol);
+    spedisciStringa(buf);
   }
 }
 //

@@ -23,6 +23,11 @@
 #include <WiFi.h>
 #include <WiFiMulti.h> // permette di registrare molteplici access points e di connettersi in automatico a quello col segnale migliore
 
+#include <HTTPClient.h>
+#include <Update.h>
+
+#include <PubSubClient.h> // Installata dal library manager, MQTT
+
 #include <Wire.h> 
 #include <LiquidCrystal_I2C.h> // https://github.com/johnrickman/LiquidCrystal_I2C
 #include <Keypad.h> // Keypad da Mark Stanley, Alexander Brevig
@@ -48,7 +53,7 @@ void setup() {
     Serial.println("\nTastiera scollegata\n");
   }
 
-  /*
+  
   WiFi.mode(WIFI_STA); // STATION: si connette ad un network esistente
   WiFi.setAutoReconnect(true); // per riconnetteresi in caso la connessione crolli
   WiFiMulti.addAP(ssid_AP2, password_AP2); // per il wifi di casa
@@ -56,34 +61,54 @@ void setup() {
   lcd.setCursor(0, 0);
   lcd.print("Connessione WiFi...");
 
-  while (WiFiMulti.run() != WL_CONNECTED) {
+  // Provo a connettermi al WiFi per 30sec al massimo
+  uint32_t startWiFi = millis();
+  while (WiFiMulti.run() != WL_CONNECTED && millis() - startWiFi < 30000) {
     Serial.print(".");
     delay(1000);
   }
 
-  Serial.print("WiFi connesso! IP: ");
-  Serial.println(WiFi.localIP());
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("IP:");
-  lcd.print(WiFi.localIP());
-  */
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.print("WiFi connesso! IP: ");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println("WiFi non disponibile, proseguo senza. Riproverò nel loop.");
+  }
+
+  // MQTT setup
+  mqttClient.setServer(MQTT_BROKER, MQTT_PORT);
+  mqttClient.setCallback(mqttCallback);
+  // La connessione effettiva avviene nel loop() tramite gestisciMQTT()
 
   Homepage();
 }
 
-
+// TODO
+// Non mi piace il fatto che questo loop in realtà non è quello che ripetiamo all'infinito ma è quello in Test_01. Sarebbe meglio spostare i controlli di routine per LoRa e OTA updates qui
+// Però Test_01 ricarica lo schermo ogni volta che viene chiamato ora come ora, se lo invocassi ogni iterazione flickerebbe troppo
 void loop(){
+  // Controlli da fare anche se non abbiamo messo la PW
+  // LoRa
+  if (ReadDataFromAntenna()) {
+    if ( parseAntenna() ) esaminaMessaggio();  // esamina messaggio seriale
+  }
+
+  //solo per test, triggera l'update all'input da serial monitor
+  if (Serial.available() && Serial.read() == 'U') FW_UPDATE = 1;
+
+  // MQTT (riconnessione non bloccante + processing messaggi in arrivo)
+  gestisciMQTT();
+
+  // Controllo OTA triggerato da MQTT, eseguito quando gli slave sono fermi
+  if (shouldUpdateFirmware()) {
+    updateFirmware();
+  }
   
   if( ! password()){ // pw corretta
-    if (ReadDataFromAntenna()) {
-      if ( parseAntenna() ) esaminaMessaggio();  // esamina messaggio seriale
-    }
     Test_01();
     Serial.println( "Fine Test" );
     Homepage();
   }  
-  
   delay(100);
   
 }

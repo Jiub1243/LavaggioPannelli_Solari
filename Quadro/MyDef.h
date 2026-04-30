@@ -20,7 +20,37 @@
   const char* password_AP4 = "T-BoxW&G23";
 
   WiFiMulti WiFiMulti;
-  const uint32_t connectTimeoutWiFi = 12000;  // Timeout connessione WiFi 12 sec.
+  const uint32_t connectTimeoutWiFi = 12000;  // Timeout connessione WiFi 12 sec. TODO perché 12 secondi?
+
+  // MQTT TODO sono corrette?
+  #define MQTT_BROKER       "almotech.myqnapcloud.com"      // hostname o IP del broker 
+  #define MQTT_PORT         32768                       
+  #define MQTT_USER         "sintel"                        // vuoto se broker pubblico
+  #define MQTT_PASSWORD     "telsin12"                      // vuoto se broker pubblico
+  #define MQTT_CLIENT_ID    "LavaggioPannelli_Solari"       // deve essere unico sul broker
+
+  // Topics MQTT
+  #define MQTT_TOPIC_PREFIX     "sintel/lavaggio/quadro"
+  #define MQTT_TOPIC_ONLINE     MQTT_TOPIC_PREFIX "/online"
+  #define MQTT_TOPIC_TRASLO     MQTT_TOPIC_PREFIX "/traslo/stato"
+  #define MQTT_TOPIC_CARRO      MQTT_TOPIC_PREFIX "/carro/stato"
+  #define MQTT_TOPIC_CMD        MQTT_TOPIC_PREFIX "/cmd"
+
+  // Istanza client MQTT
+  WiFiClient wifiClientMQTT;
+  PubSubClient mqttClient(wifiClientMQTT);
+
+  // Stato MQTT - per riconnessione non bloccante 
+  uint32_t lastReconnectAttemptMQTT = 0;
+  #define MQTT_RECONNECT_INTERVAL 5000  // ritenta connessione ogni 5s
+
+  // Per pubblicazione su cambio: ricorda l'ultimo stato pubblicato
+  uint8_t ultimoStatoTrasloPubblicato = 0xFF;  // 0xFF = mai pubblicato
+  uint8_t ultimoStatoCarroPubblicato  = 0xFF;
+
+  // OTA Firmware Update
+  #define FIRMWARE_URL "https://the-cerulean-pilgrimage.neocities.org/assets/Quadro.ino.bin"  // TODO: aggiornare con l'URL reale
+  bool FW_UPDATE = 0;  // Flag settata da MQTT per triggerare l'aggiornamento
   
   // LCD
   #define LCD_ADR 0x38  // 26Indirizzo I2C Display
@@ -43,7 +73,7 @@
   bool ARRESTA = 0;
 
   uint8_t Colonna = 0; // Colonna Corrente
-  uint8_t maxCol = 39; // indice dell'ultima colonna
+  uint8_t maxCol = 39; // 39 
   uint8_t maxCol_da_confermare;
 
   bool cneFlag = 0; // Comando Non Eseguibile. Diventa 1 quando ricevo questo messaggio
@@ -51,9 +81,9 @@
   bool offlineCarroFlag  = false; // flag per il timeout delle richieste di stato
   bool offlineTrasloFlag  = false;
 
-  long passi_Colonna_M1 = 4800;
+  long passi_Colonna_M1 = 4800; // 4800 
   long passi_Colonna_M1_da_confermare;
-  long passi_Colonna_M2 = 2770;
+  long passi_Colonna_M2 = 2770; // 2770 
   long passi_Colonna_M2_da_confermare;
 
   
@@ -82,7 +112,7 @@
   char Master[Password_Length] = "1";  
   byte data_count = 0, master_count = 0;
   bool Pass_is_good;
-  #define MAX_PAG 7 // num of pages for the LCD
+  #define MAX_PAG 8 // num of pages for the LCD
 
   // Motori
   const int stepsPerRev_M1 = 400;    // Steps per revolution - may need to be adjusted
@@ -109,7 +139,7 @@
   // Status polling, per le richieste di stato
   uint32_t Ultimo_Poll_Traslo = 0;
   uint32_t Ultimo_Poll_Carro = 0;
-  #define INTERVALLO_POLL 5000  // 5 secondi
+  #define INTERVALLO_POLL 60000  // 60 secondi
 
   // Offline detection, per le risposte 
   uint32_t Ultimo_Msg_Traslo = 0;

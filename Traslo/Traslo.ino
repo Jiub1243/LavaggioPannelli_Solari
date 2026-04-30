@@ -64,6 +64,19 @@ void setup(){
   Homepage();
   Serial1.begin( 115200 );
 
+  long temp_M1;
+  long temp_M2;
+  uint8_t temp_maxCol;
+
+  EEPROM.get(EE_ADDR_PASSI_M1, temp_M1);
+  EEPROM.get(EE_ADDR_PASSI_M2, temp_M2);
+  temp_maxCol = EEPROM.read(EE_ADDR_MAXCOL);
+
+  //assegno nuovi valori letti dalla memoria solo quando superano il sanity check. Altrimenti se la memoria è fleshata o corrotta si spacca tutto
+  if (temp_M1 > 0 && temp_M1 < 100000)   passi_Colonna_M1 = temp_M1;
+  if (temp_M2 > 0 && temp_M2 < 100000)   passi_Colonna_M2 = temp_M2;
+  if (temp_maxCol > 0 && temp_maxCol < 100) maxCol = temp_maxCol;
+
 }
 
 void loop(){

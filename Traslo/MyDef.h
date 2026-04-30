@@ -10,6 +10,10 @@
   #define VELOCITA_M2_ZERO           50  // Velocità M2 durante lo 0 asse
   #define VELOCITA_M1_AVANZAMENTO   693  // 800 Velocità M1 durante l'avanzamento
   #define VELOCITA_M2_AVANZAMENTO   400  // Velocità M2 durante l'avanzamento
+
+  #define EE_ADDR_PASSI_M1   515   // long, 4 byte: 515-518
+  #define EE_ADDR_PASSI_M2   519   // long, 4 byte: 519-522
+  #define EE_ADDR_MAXCOL     523   // uint8_t, 1 byte: 523
   
   const uint8_t KEYPAD_ADDRESS = 0x39; //26
   I2CKeyPad keyPad(KEYPAD_ADDRESS);

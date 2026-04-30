@@ -72,31 +72,20 @@ bool slavesInMovimento() {
 
 // Controlla se il tasto premuto è da usare per fermare gli slaves
 // Da chiamare nel loop interno di Test_01(), prima di processare customKey per i menu
-void controllaTastoStop(char customKey) {
-  if (customKey == ' ' ||customKey == 'A' ||customKey == 'B') return; // nessun tasto premuto
-  Serial.print("STATO_CORRENTE_TRASLO: ");
+// Ritorna 1 se il tasto è da usare per inviare un messaggio di STOP, 0 altrimenti
+uint8_t controllaTastoStop(char customKey) {
+  if (customKey == ' ' ||customKey == 'A' ||customKey == 'B') return 0; // nessun tasto premuto
+  /*Serial.print("STATO_CORRENTE_TRASLO: ");
   Serial.println(STATO_CORRENTE_TRASLO);
   Serial.print("STATO_CORRENTE_CARRO: ");
   Serial.println(STATO_CORRENTE_CARRO);
   Serial.print("Attesa_Risposta: ");
   Serial.println(Attesa_Risposta);
   Serial.print("in movimento -> ");
-  Serial.println(slavesInMovimento());
-  if (!slavesInMovimento()) return; // nessuno slave in movimento
+  Serial.println(slavesInMovimento());*/
+  if (!slavesInMovimento()) return 0; // nessuno slave in movimento
 
-  // Manda STOP a entrambi con spedisciStringa perché inviaConRisposta gestisce solo un dispositivo alla volta
-  spedisciStringa("02003", TRASLO_ADD);
-  spedisciStringa("02003", CARRO_ADD);
-
-  // Pulisce lo stato di retry in corso
-  Attesa_Risposta = false;
-  Tentativi_Invio = 0;
-  Messaggio_Buffered = "";
-
-  lcd.clear();
-  lcd.setCursor(0, 1);
-  lcd.print("STOP inviato...     ");
-  delay(1000);
+  return 1;
 }
 
 //*/
@@ -304,7 +293,7 @@ void aggiornaDisplayPT(StatoPulisciTutto stato, uint8_t colonna) {
   }
 
   lcd.setCursor(0, 3);
-  lcd.print("D = STOP            ");  // 20
+  lcd.print("F4 = STOP           ");  // 20
 }
 
 // Comunica sul display l'esito finale della pulizia
@@ -609,6 +598,19 @@ void Display_Test(uint8_t pagina){
       lcd.print("2 Set Spazzola DX   "); // Setta l'altezza DX della spazzola
       }
       break;
+
+    case 8 : { // Traslo, pag 2 
+      lcd.clear();
+      lcd.setCursor(0,0);
+      lcd.print("1 RQST Passi M1     "); // RQST passi_Colonna_M1
+
+      lcd.setCursor(0,1);
+      lcd.print("2 RQST Passi M2     "); // RQST passi_Colonna_M2
+
+      lcd.setCursor(0,2);
+      lcd.print("3 RQST maxCol       "); // RQST maxCol
+      }
+      break;
     }
 }
 
@@ -627,10 +629,32 @@ void Test_01(){
       old_stato_traslo = STATO_CORRENTE_TRASLO; // salvo i vecchi stati per vedere se cambiano
       old_stato_carro  = STATO_CORRENTE_CARRO;
 
+      //LoRa
       if (ReadDataFromAntenna()) {  
         if (parseAntenna()) esaminaMessaggio();
       }
-      //richiediStato(); // interroga periodicamente gli slaves
+      // Controllo connessione WiFi 
+      static uint32_t ultimoTentativoWiFi = 0;
+        if (WiFi.status() != WL_CONNECTED) {
+          if (millis() - ultimoTentativoWiFi >= 10000) {  // riprova ogni 10s
+            ultimoTentativoWiFi = millis();
+            Serial.print("WiFi disconnesso, tentativo riconnessione... SSID precedente: ");
+            Serial.print(WiFi.SSID());
+            Serial.print(" RSSI: ");
+            Serial.println(WiFi.RSSI());
+            WiFiMulti.run(connectTimeoutWiFi);  
+          }
+      }
+
+      // MQTT (riconnessione non bloccante + processing messaggi in arrivo)
+      gestisciMQTT();
+
+      //Controllo OTA: triggerato da MQTT, eseguito quando gli slave sono fermi
+      if (shouldUpdateFirmware()) {
+        updateFirmware();
+      }
+
+      richiediStato(); // interroga periodicamente gli slaves
       controllaRisposta(); // Controlla se è scaduto il timeout e ritrasmette
       controllaConnessione(); // // Controlla che gli slaves abbiano risposto entro un certo intervallo
 
@@ -712,7 +736,24 @@ void Test_01(){
 
       customKey = GetKey();
       // Conrtolla se è il caso di usare il tasto premuto come stop o no
-      controllaTastoStop(customKey);
+      if (controllaTastoStop(customKey)){
+        // Manda STOP a entrambi con spedisciStringa perché inviaConRisposta gestisce solo un dispositivo alla volta
+        spedisciStringa("02003", TRASLO_ADD);
+        spedisciStringa("02003", CARRO_ADD);
+
+        // Pulisce lo stato di retry in corso
+        Attesa_Risposta = false;
+        Tentativi_Invio = 0;
+        Messaggio_Buffered = "";
+
+        lcd.clear();
+        lcd.setCursor(0, 1);
+        lcd.print("STOP inviato...     ");
+        delay(1000);
+        Display_Test(pagina_test);
+
+        customKey = ' ';
+      }
     } while (customKey == ' ');
 
     switch( pagina_test ) {
@@ -1044,6 +1085,47 @@ void Test_01(){
 
           case 'B': 
             if( pagina_test > 1 ) pagina_test--; else pagina_test = MAX_PAG ;
+            break;
+
+          case 'D': pagina_test = 0; break;
+        }
+        break;
+
+      case 8: // Traslo pag 2 - Richieste parametri
+        switch( customKey ) {
+          case '1': // RQST passi_Colonna_M1
+            inviaConRisposta( "13001", TRASLO_ADD );
+            lcd.clear();
+            lcd.setCursor( 0, 1 );
+            lcd.print( "RQST Passi M1...   " );
+            delay(1000);
+            Display_Test( pagina_test );
+            break;
+
+          case '2': // RQST passi_Colonna_M2
+            inviaConRisposta( "14001", TRASLO_ADD );
+            lcd.clear();
+            lcd.setCursor( 0, 1 );
+            lcd.print( "RQST Passi M2...   " );
+            delay(1000);
+            Display_Test( pagina_test );
+            break;
+
+          case '3': // RQST maxCol
+            inviaConRisposta( "15001", TRASLO_ADD );
+            lcd.clear();
+            lcd.setCursor( 0, 1 );
+            lcd.print( "RQST maxCol...     " );
+            delay(1000);
+            Display_Test( pagina_test );
+            break;
+
+          case 'A':
+            if( pagina_test < MAX_PAG ) pagina_test++; else pagina_test = 1;
+            break;
+
+          case 'B':
+            if( pagina_test > 1 ) pagina_test--; else pagina_test = MAX_PAG;
             break;
 
           case 'D': pagina_test = 0; break;

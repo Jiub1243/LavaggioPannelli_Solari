@@ -49,6 +49,15 @@ ho aggiornato l'assegnazione di Messaggio_OK in ReadDataFromAntenna
 *         06 = Set Set maxCol          xxx = Nuovo valore maxCol
 *                     06   xxx = Valore confermato
 *                     01   009 = Comando non eseguibile
+*
+*         13 = RQST passi_Colonna_M1   001 = Richiesta valore corrente
+*                     13   xxx = passi_Colonna_M1 / 10
+*
+*         14 = RQST passi_Colonna_M2   001 = Richiesta valore corrente
+*                     14   xxx = passi_Colonna_M2 / 10
+*
+*         15 = RQST maxCol             001 = Richiesta valore corrente
+*                     15   xxx = maxCol
 * 
 *  Messaggio:-Risposte Carro:
 *         xx          rr         yyy
@@ -428,6 +437,7 @@ void esaminaMessaggio( void )
         STATO_CORRENTE_CARRO = datiClient.dato;
         Serial.print(" Nuovo stato del Carro:   ");
         Serial.println(STATO_CORRENTE_CARRO);
+        pubblicaStatoCarroSeCambiato();
       }
 
       // Gestione errori
@@ -458,6 +468,7 @@ void esaminaMessaggio( void )
         STATO_CORRENTE_TRASLO = datiClient.dato;
         Serial.print(" Nuovo stato del traslo:   ");
         Serial.println(STATO_CORRENTE_TRASLO);
+        pubblicaStatoTrasloSeCambiato();
 
         if (datiClient.dato == 12 ||datiClient.dato == 13 ) {// Allarme Zero M1 o M2
           tentaRetry(retryErroreTraslo);
@@ -475,6 +486,7 @@ void esaminaMessaggio( void )
       Colonna = (uint8_t)datiClient.dato;
       Serial.print(" Nuovo stato del traslo:   ");
       Serial.println(STATO_CORRENTE_TRASLO);
+      pubblicaStatoTrasloSeCambiato();
     }else if (datiClient.comando == 4) { // Conferma passi_Colonna_M1
       long confermato = (long)datiClient.dato * 10;
       if (confermato != passi_Colonna_M1_da_confermare) {
@@ -498,7 +510,6 @@ void esaminaMessaggio( void )
         passi_Colonna_M2 = confermato;
         Serial.println("passi_Colonna_M2 confermato dal Traslo");
       }
-    }
     }else if (datiClient.comando == 6) { // Conferma maxCol
       uint8_t confermato = (uint8_t)datiClient.dato;
       if (confermato != maxCol_da_confermare) {
@@ -510,7 +521,20 @@ void esaminaMessaggio( void )
         maxCol = confermato;
         Serial.println("maxCol confermato dal Traslo");
       }
+    }else if (datiClient.comando == 13) {
+      passi_Colonna_M1 = (long)datiClient.dato * 10;
+      Serial.print("Sync passi_Colonna_M1 dal Traslo: ");
+      Serial.println(passi_Colonna_M1);
+    } else if (datiClient.comando == 14) {
+      passi_Colonna_M2 = (long)datiClient.dato * 10;
+      Serial.print("Sync passi_Colonna_M2 dal Traslo: ");
+      Serial.println(passi_Colonna_M2);
+    } else if (datiClient.comando == 15) {
+      maxCol = (uint8_t)datiClient.dato;
+      Serial.print("Sync maxCol dal Traslo: ");
+      Serial.println(maxCol);
     }
+  }
 }
 //
 // seriale wireless LORA  ----> FINE

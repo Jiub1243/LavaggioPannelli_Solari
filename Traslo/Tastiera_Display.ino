@@ -78,6 +78,9 @@ void Test_01(){
   do{
     Display_Test( pagina_test );
     do{
+      if (ReadDataFromAntenna()) {  
+        if (parseAntenna()) esaminaMessaggio();
+      }
       customKey = GetKey();
     } while (customKey == ' ');
     switch(customKey) {
