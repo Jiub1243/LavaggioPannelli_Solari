@@ -118,6 +118,16 @@ ho aggiornato l'assegnazione di Messaggio_OK in ReadDataFromAntenna
 *                               999   -> Ritorna il settaggio corrente
 *                     11   xxx = Altezza settata
 *                     01   009 = Comando non eseguibile
+*         13 = Set CORSA_M1M2   xxx = Nuovo modulo CORSA_M1M2 / 100 (salvata negativa sul Carro)
+*                     13   xxx = Valore confermato
+*                     01   009 = Comando non eseguibile
+*         14 = Set CORSA_M4     xxx = Nuovo valore CORSA_M4 / 1000
+*                     14   xxx = Valore confermato
+*                     01   009 = Comando non eseguibile
+*         15 = RQST CORSA_M1M2  001 = Richiesta valore corrente
+*                     15   xxx = |CORSA_M1M2| / 100
+*         16 = RQST CORSA_M4    001 = Richiesta valore corrente
+*                     16   xxx = CORSA_M4 / 1000
 */
 
 // Aspetta di ricevere il carattere 'MESS_START_MESS' prima di iniziare a registrare un messaggio
@@ -421,11 +431,12 @@ void esaminaMessaggio( void )
       01015 - Errore Lettura Altezza Sollevatore
     03xxx - Spazzolatura completata al xxx % 
     04001, 05001, 06001 - Comando TEST Sollevatore o TEST Avanzamento o TEST velocità spazzola OK
-    07xxx - Altezza Sollevatore SX xxx %
-    08xxx - Altezza Sollevatore DX xxx %
-    09xxx - Avanzamento completato al xxx %
-    10xxx - Velocità rotazione spazzola xxx %
-    11xxx - Altezza settata (DX o SX)
+    07xxx - Get Altezza Sollevatore SX xxx %
+    08xxx - Get Altezza Sollevatore DX xxx %
+    09xxx - Get Avanzamento completato al xxx %
+    10xxx - Get Velocità rotazione spazzola xxx %
+    11xxx - Get Altezza settata SX
+    12xxx - Get Altezza settata DX
     01009 - Comando non eseguibile
     */
     if(datiClient.comando == 1) { // Aggiornamento Stato
@@ -450,7 +461,50 @@ void esaminaMessaggio( void )
     }else if(datiClient.comando == 3) { // Spazzolatura colonna xxx
       STATO_CORRENTE_CARRO = 4;
       Colonna = (uint8_t)datiClient.dato;
-    } 
+    }else if (datiClient.comando == 7) {  // Altezza Sollevatore SX (%)
+      altezza_Sollevatore_SX = (uint8_t)datiClient.dato;
+    }else if (datiClient.comando == 8) {  // Altezza Sollevatore DX (%)
+      altezza_Sollevatore_DX = (uint8_t)datiClient.dato;
+    }else if (datiClient.comando == 9) {  // Avanzamento (%)
+      perc_Avanzamento = (uint8_t)datiClient.dato;
+    }else if (datiClient.comando == 10) { // Velocita' rotazione spazzola (%)
+      perc_Spazzola = (uint8_t)datiClient.dato;
+    }else if (datiClient.comando == 11) { // Altezza spazzolatura SX impostata
+      abbassamento_SX = (uint8_t)datiClient.dato;
+    }else if (datiClient.comando == 12) { // Altezza spazzolatura DX impostata
+      abbassamento_DX = (uint8_t)datiClient.dato;
+    }else if (datiClient.comando == 13) { // Conferma CORSA_M1M2
+      long confermato = (long)datiClient.dato * 100;
+      if (confermato != CORSA_M1M2_da_confermare) {
+        Serial.print("ATTENZIONE: CORSA_M1M2 non confermata. Atteso: ");
+        Serial.print(CORSA_M1M2_da_confermare);
+        Serial.print(" Ricevuto: ");
+        Serial.println(confermato);
+        // TODO: segnalare errore all'HMI o ritentare
+      } else {
+        CORSA_M1M2 = confermato;
+        Serial.println("CORSA_M1M2 confermata dal Carro");
+      }
+    }else if (datiClient.comando == 14) { // Conferma CORSA_M4
+      long confermato = (long)datiClient.dato * 1000;
+      if (confermato != CORSA_M4_da_confermare) {
+        Serial.print("ATTENZIONE: CORSA_M4 non confermata. Atteso: ");
+        Serial.print(CORSA_M4_da_confermare);
+        Serial.print(" Ricevuto: ");
+        Serial.println(confermato);
+      } else {
+        CORSA_M4 = confermato;
+        Serial.println("CORSA_M4 confermata dal Carro");
+      }
+    }else if (datiClient.comando == 15) { // Sync CORSA_M1M2 (risposta RQST)
+      CORSA_M1M2 = (long)datiClient.dato * 100;
+      Serial.print("Sync CORSA_M1M2 dal Carro: ");
+      Serial.println(CORSA_M1M2);
+    }else if (datiClient.comando == 16) { // Sync CORSA_M4 (risposta RQST)
+      CORSA_M4 = (long)datiClient.dato * 1000;
+      Serial.print("Sync CORSA_M4 dal Carro: ");
+      Serial.println(CORSA_M4);
+    }
 
   }else if(datiClient.mittente == TRASLO_ADD) { // ricevuto messaggio dal traslo
     /*Comandi possibili:
@@ -460,6 +514,16 @@ void esaminaMessaggio( void )
       01014 - errore extracorsa, mai assegnato
     03xxx - Stato spostamento verso colonna xxx
     01009 - Comando non eseguibile
+    04xxx - Conferma valore passi_Colonna_M1 / 10
+    05xxx - Conferma valore passi_Colonna_M1 / 10
+    06xxx - Conferma valore maxCol
+    07xxx - Conferma valore passi0_M1 / 10 (tratto Zero -> colonna 1)
+    08xxx - Conferma valore passi0_M2 / 10 (tratto Zero -> colonna 1)
+    13xxx - Get passi_Colonna_M1 / 10
+    14xxx - Get passi_Colonna_M2 / 10
+    15xxx - Get maxCol
+    16xxx - Get passi0_M1 / 10
+    17xxx - Get passi0_M2 / 10
     */
     if(datiClient.comando == 1) { // Aggiornamento Stato
       if ( datiClient.dato == 9 ) {// Comando non eseguibile
@@ -521,6 +585,28 @@ void esaminaMessaggio( void )
         maxCol = confermato;
         Serial.println("maxCol confermato dal Traslo");
       }
+    }else if (datiClient.comando == 7) { // Conferma passi0_M1
+      long confermato = (long)datiClient.dato * 10;
+      if (confermato != passi0_M1_da_confermare) {
+        Serial.print("ATTENZIONE: passi0_M1 non confermato. Atteso: ");
+        Serial.print(passi0_M1_da_confermare);
+        Serial.print(" Ricevuto: ");
+        Serial.println(confermato);
+      } else {
+        passi0_M1 = confermato;
+        Serial.println("passi0_M1 confermato dal Traslo");
+      }
+    }else if (datiClient.comando == 8) { // Conferma passi0_M2
+      long confermato = (long)datiClient.dato * 10;
+      if (confermato != passi0_M2_da_confermare) {
+        Serial.print("ATTENZIONE: passi0_M2 non confermato. Atteso: ");
+        Serial.print(passi0_M2_da_confermare);
+        Serial.print(" Ricevuto: ");
+        Serial.println(confermato);
+      } else {
+        passi0_M2 = confermato;
+        Serial.println("passi0_M2 confermato dal Traslo");
+      }
     }else if (datiClient.comando == 13) {
       passi_Colonna_M1 = (long)datiClient.dato * 10;
       Serial.print("Sync passi_Colonna_M1 dal Traslo: ");
@@ -533,6 +619,14 @@ void esaminaMessaggio( void )
       maxCol = (uint8_t)datiClient.dato;
       Serial.print("Sync maxCol dal Traslo: ");
       Serial.println(maxCol);
+    } else if (datiClient.comando == 16) {
+      passi0_M1 = (long)datiClient.dato * 10;
+      Serial.print("Sync passi0_M1 dal Traslo: ");
+      Serial.println(passi0_M1);
+    } else if (datiClient.comando == 17) {
+      passi0_M2 = (long)datiClient.dato * 10;
+      Serial.print("Sync passi0_M2 dal Traslo: ");
+      Serial.println(passi0_M2);
     }
   }
 }

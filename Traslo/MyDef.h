@@ -14,7 +14,9 @@
   #define EE_ADDR_PASSI_M1   515   // long, 4 byte: 515-518
   #define EE_ADDR_PASSI_M2   519   // long, 4 byte: 519-522
   #define EE_ADDR_MAXCOL     523   // uint8_t, 1 byte: 523
-  
+  #define EE_ADDR_PASSI0_M1  524   // long, 4 byte: 524-527
+  #define EE_ADDR_PASSI0_M2  528   // long, 4 byte: 528-531
+
   const uint8_t KEYPAD_ADDRESS = 0x39; //26
   I2CKeyPad keyPad(KEYPAD_ADDRESS);
   uint32_t lastKeyPressed = 0;
@@ -28,14 +30,17 @@
 
   long passi_Colonna_M1 = 4800;
   long passi_Colonna_M2 = 2770;
-  
+
+  long passi0_M1 = 4800; // passi M1 tra la posizione 0 (Zero Traslo) e la colonna 1, configurabile separatamente
+  long passi0_M2 = 2770; // passi M2 tra la posizione 0 (Zero Traslo) e la colonna 1, configurabile separatamente
+
   // Motore Superiore (Cremagliera)
   int StepPin_M1 = 22;
   int DirPin_M1 = 23;
   int EnaPin_M1 = 24;
   uint8_t Error_Driver_M1 = 38;
-  uint8_t Sensore_Zero_M1       = 43; // Sensore di ZERO Motore 1
-  uint8_t Sensore_Posizione_M1  = 42; // Sensore di Posizione M1
+  uint8_t Sensore_Zero_M1       = 42; // Sensore di ZERO Motore 1
+  uint8_t Sensore_Posizione_M1  = 43; // Sensore di Posizione M1
   // Motore Inferiore (Ruote lisciie)
   int StepPin_M2 = 25;
   int DirPin_M2 = 26;

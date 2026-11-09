@@ -42,6 +42,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     Serial.println("Comando MQTT: stop");
     // Mirror di controllaTastoStop(): manda 02003 a entrambi
     spedisciStringa("02003", TRASLO_ADD);
+    delay(300); // il modulo LoRa ha bisogno di tempo tra due AT+SEND consecutivi (di più se il primo destinatario è offline), altrimenti il secondo può essere perso/corrotto
     spedisciStringa("02003", CARRO_ADD);
     Attesa_Risposta = false;
     Tentativi_Invio = 0;

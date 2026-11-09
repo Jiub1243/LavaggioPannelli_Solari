@@ -99,15 +99,17 @@ void Test_01() {
                   if( sensore_M2 ) stepper_M2.write(0);
                   //stepper_M1.doSteps( 5044 );
                   //stepper_M2.doSteps( 5044 );
-                  do {
-                    LCD_Posizione_M1_M2();
-                    customKey = GetKey();
-                    sensore_M1 = digitalRead(Sens_Zero_M1);
-                    sensore_M2 = digitalRead(Sens_Zero_M2);
-                    if( ! sensore_M1 ) stepper_M1.rotate(0);
-                    if( ! sensore_M2 ) stepper_M2.rotate(0);
-                    //delay(200);
-                  }while ( ( stepper_M1.moving() || stepper_M2.moving() ) && ( customKey == ' ' ) );
+                  {
+                    uint8_t arresto;
+                    do {
+                      LCD_Posizione_M1_M2();
+                      sensore_M1 = digitalRead(Sens_Zero_M1);
+                      sensore_M2 = digitalRead(Sens_Zero_M2);
+                      if( ! sensore_M1 ) stepper_M1.rotate(0);
+                      if( ! sensore_M2 ) stepper_M2.rotate(0);
+                      arresto = Interrompi(); // ascolta antenna/tasti/errori invece del solo GetKey() locale
+                    }while ( ( stepper_M1.moving() || stepper_M2.moving() ) && arresto );
+                  }
                   stepper_M1.rotate(0);
                   stepper_M2.rotate(0);
                   LCD_Posizione_M1_M2();
@@ -120,15 +122,17 @@ void Test_01() {
                   Pos_M4 = stepper_M4.read() + 72000;
                   if (Pos_M4 > 285000) Pos_M4 = 285500;
                   stepper_M4.write(Pos_M4);
-                  do {
-                    LCD_Posizione_M4();
-                    customKey = GetKey();
-                    sensore_M4 = digitalRead(OltreCorsa_M4);
-                    if( ! sensore_M4 ) stepper_M4.stop( );
-                    //delay(200);
-                  }while ( ( stepper_M4.moving() ) && ( customKey == ' ' ) );
-                  stepper_M4.rotate(0);
-                  while ( stepper_M4.moving() );
+                  {
+                    uint8_t arresto;
+                    do {
+                      LCD_Posizione_M4();
+                      sensore_M4 = digitalRead(OltreCorsa_M4);
+                      if( ! sensore_M4 ) stepper_M4.stop( );
+                      arresto = Interrompi(); // ascolta antenna/tasti/errori invece del solo GetKey() locale
+                    }while ( ( stepper_M4.moving() ) && arresto );
+                    stepper_M4.rotate(0);
+                    while ( stepper_M4.moving() ) Interrompi(); // continua ad ascoltare durante la rampa di stop
+                  }
                   LCD_Posizione_M4();
                   //digitalWrite(Collega_M4, LOW);
                   //digitalWrite(Accendi_Driver_M4, LOW);
@@ -164,8 +168,10 @@ void Test_01() {
                 for(int i=0; i<8; i++){
                   stepper_M1.doSteps( -214 );
                   stepper_M2.doSteps( -214 );
-                  while(stepper_M1.moving() || stepper_M2.moving());
-                  delay(1000);
+                  uint8_t arresto = 1;
+                  while((stepper_M1.moving() || stepper_M2.moving()) && arresto) arresto = Interrompi();
+                  if (!arresto) { stepper_M1.stop(); stepper_M2.stop(); break; }
+                  attesaAttivaTA(1000);
                 }
               }
 
@@ -194,12 +200,14 @@ void Test_01() {
                   stepper_M1.doSteps( 2550 );
                   stepper_M2.doSteps( 2550 );*/
 
-                  do {
-                    LCD_Posizione_M1_M2();
-                    customKey = GetKey();
-                    delay(200);
+                  {
+                    uint8_t arresto;
+                    do {
+                      LCD_Posizione_M1_M2();
+                      arresto = Interrompi(); // ascolta antenna/tasti/errori invece del solo GetKey() locale
 
-                  }while ( ( stepper_M1.moving() || stepper_M2.moving() ) && ( customKey == ' ' ) );
+                    }while ( ( stepper_M1.moving() || stepper_M2.moving() ) && arresto );
+                  }
                   stepper_M1.rotate(0);
                   stepper_M2.rotate(0);
                   LCD_Posizione_M1_M2();
@@ -216,15 +224,17 @@ void Test_01() {
                   }
                   else Pos_M4 = 0;
                   stepper_M4.write(Pos_M4);
-                  do {
-                    LCD_Posizione_M4();
-                    customKey = GetKey();
-                    sensore_M4 = digitalRead(Sens_Zero_M4);
-                    if( ! sensore_M4 ) stepper_M4.stop( );
-                    //delay(200);
-                  }while ( ( stepper_M4.moving() ) && ( customKey == ' ' ) );
-                  stepper_M4.rotate(0);
-                  while ( stepper_M4.moving() );
+                  {
+                    uint8_t arresto;
+                    do {
+                      LCD_Posizione_M4();
+                      sensore_M4 = digitalRead(Sens_Zero_M4);
+                      if( ! sensore_M4 ) stepper_M4.stop( );
+                      arresto = Interrompi(); // ascolta antenna/tasti/errori invece del solo GetKey() locale
+                    }while ( ( stepper_M4.moving() ) && arresto );
+                    stepper_M4.rotate(0);
+                    while ( stepper_M4.moving() ) Interrompi(); // continua ad ascoltare durante la rampa di stop
+                  }
                   LCD_Posizione_M4();
                   //digitalWrite(Collega_M4, LOW);
                   //digitalWrite(Accendi_Driver_M4, LOW);
@@ -246,8 +256,10 @@ void Test_01() {
                 for(int i=0; i<8; i++){
                   stepper_M1.doSteps( 214 );
                   stepper_M2.doSteps( 214 );
-                  while(stepper_M1.moving() || stepper_M2.moving());
-                  delay(1000);
+                  uint8_t arresto = 1;
+                  while((stepper_M1.moving() || stepper_M2.moving()) && arresto) arresto = Interrompi();
+                  if (!arresto) { stepper_M1.stop(); stepper_M2.stop(); break; }
+                  attesaAttivaTA(1000);
                 }
               }
               if (pagina_test == 3) ;
@@ -485,6 +497,9 @@ void Display_Test(uint8_t pagina){
             lcd.setCursor(0,3);
             lcd.print(mis_2);
             lcd.print(" cen.      ");
+            if (ReadDataFromAntenna()) { // ascolta anche l'antenna mentre questa pagina è a display
+              if (parseAntenna()) esaminaMessaggio();
+            }
             customKey = GetKey();
           } while ( customKey == ' ' );
           if( customKey == '9' ) {

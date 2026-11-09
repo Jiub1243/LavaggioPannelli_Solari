@@ -18,9 +18,11 @@ aggiunto il parametro Velocita_Corrente_M3 che tiene contro dei cambiamenti asse
   
   bool ARRESTA = 0;
 
-  // Corsa massima assi
-  #define CORSA_M1M2 -11500   // Corsa massima M1 e M2
-  #define CORSA_M4   100000   // Corsa massima M4 285500
+  // Corsa massima assi (programmabili dal Quadro, salvate in EEPROM)
+  long CORSA_M1M2 = -11500;   // Corsa massima M1 e M2 (negativa). Protocollo: modulo/100
+  long CORSA_M4   = 100000;   // Corsa massima M4 285500. Protocollo: valore/1000
+  #define EE_ADDR_CORSA_M1M2 515   // long, 4 byte: 515-518
+  #define EE_ADDR_CORSA_M4   519   // long, 4 byte: 519-522
   // Altezza START per controllo sensori Altezza
   #define ALTEZZA_M1 -1500 // -1400 Altezza di TEST SENSORE SX Appoggio ruote misuratrici Altezza
   #define ALTEZZA_M2 -1670 // -1610 Altezza di TEST SENSORE DX Appoggio ruote misuratrici Altezza

@@ -32,12 +32,12 @@ void setup(){
   }
 
   //stepper_M1.attachEnable( EnaPin_M1, 10, LOW );  // Commentare per FRENO
-  stepper_M1.attach( StepPin_M1, DirPin_M1 );
+  stepper_M1.attach( StepPin_M1, DirPin_M1, INV_DIR );
   stepper_M1.setSpeed( 800 );             // 30 rev/min (if stepsPerRev is set correctly)
   stepper_M1.setRampLen( 400 ); // Ramp length is 1/2 revolution
 
   //stepper_M2.attachEnable( EnaPin_M2, 10, LOW );  // Commentare per FRENO
-  stepper_M2.attach( StepPin_M2, DirPin_M2 );
+  stepper_M2.attach( StepPin_M2, DirPin_M2, INV_DIR );
   stepper_M2.setSpeed( 400 );             // 30 rev/min (if stepsPerRev is set correctly)
   stepper_M2.setRampLen( 200 ); // Ramp length is 1/2 revolution
 
@@ -67,15 +67,21 @@ void setup(){
   long temp_M1;
   long temp_M2;
   uint8_t temp_maxCol;
+  long temp_P0_M1;
+  long temp_P0_M2;
 
   EEPROM.get(EE_ADDR_PASSI_M1, temp_M1);
   EEPROM.get(EE_ADDR_PASSI_M2, temp_M2);
   temp_maxCol = EEPROM.read(EE_ADDR_MAXCOL);
+  EEPROM.get(EE_ADDR_PASSI0_M1, temp_P0_M1);
+  EEPROM.get(EE_ADDR_PASSI0_M2, temp_P0_M2);
 
   //assegno nuovi valori letti dalla memoria solo quando superano il sanity check. Altrimenti se la memoria è fleshata o corrotta si spacca tutto
   if (temp_M1 > 0 && temp_M1 < 100000)   passi_Colonna_M1 = temp_M1;
   if (temp_M2 > 0 && temp_M2 < 100000)   passi_Colonna_M2 = temp_M2;
   if (temp_maxCol > 0 && temp_maxCol < 100) maxCol = temp_maxCol;
+  if (temp_P0_M1 > 0 && temp_P0_M1 < 100000) passi0_M1 = temp_P0_M1;
+  if (temp_P0_M2 > 0 && temp_P0_M2 < 100000) passi0_M2 = temp_P0_M2;
 
 }
 

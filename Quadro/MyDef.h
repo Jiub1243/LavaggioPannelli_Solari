@@ -81,10 +81,30 @@
   bool offlineCarroFlag  = false; // flag per il timeout delle richieste di stato
   bool offlineTrasloFlag  = false;
 
-  long passi_Colonna_M1 = 4800; // 4800 
+  long passi_Colonna_M1 = 4800; // 4800
   long passi_Colonna_M1_da_confermare;
-  long passi_Colonna_M2 = 2770; // 2770 
+  long passi_Colonna_M2 = 2770; // 2770
   long passi_Colonna_M2_da_confermare;
+
+  long passi0_M1 = 4800; // passi M1 tra Zero Traslo e colonna 1
+  long passi0_M1_da_confermare;
+  long passi0_M2 = 2770; // passi M2 tra Zero Traslo e colonna 1
+  long passi0_M2_da_confermare;
+
+  // Corse massime del Carro (programmabili e salvate in EEPROM sul Carro)
+  // Sul Quadro le teniamo come modulo positivo per la visualizzazione; sul Carro CORSA_M1M2 è salvata negativa.
+  long CORSA_M1M2 = 11500;   // modulo corsa sollevatori spazzola SX/DX. Protocollo: valore/100
+  long CORSA_M1M2_da_confermare;
+  long CORSA_M4 = 100000;    // corsa massima avanzamento carro. Protocollo: valore/1000
+  long CORSA_M4_da_confermare;
+
+  // Valori correnti del Carro letti via RQST (risposte 07-12), mostrati sulle pagine TEST
+  uint8_t altezza_Sollevatore_SX = 0; // 07: altezza sollevatore SX (%)
+  uint8_t altezza_Sollevatore_DX = 0; // 08: altezza sollevatore DX (%)
+  uint8_t perc_Avanzamento = 0;       // 09: avanzamento carro (%)
+  uint8_t perc_Spazzola = 0;          // 10: velocita' rotazione spazzola (%)
+  uint8_t abbassamento_SX = 0;        // 11: altezza spazzolatura SX impostata (1/2 mm)
+  uint8_t abbassamento_DX = 0;        // 12: altezza spazzolatura DX impostata (1/2 mm)
 
   
   // Motore Superiore (Cremagliera)
@@ -112,7 +132,7 @@
   char Master[Password_Length] = "1";  
   byte data_count = 0, master_count = 0;
   bool Pass_is_good;
-  #define MAX_PAG 8 // num of pages for the LCD
+  #define MAX_PAG 11 // num of pages for the LCD
 
   // Motori
   const int stepsPerRev_M1 = 400;    // Steps per revolution - may need to be adjusted
@@ -128,8 +148,8 @@
   #define MESS_LUN_OK 5 // Lunghezza messaggio +OK
   #define MESS_LUN_ERR 10 // Lunghezza messaggio +ERR=xx
 
-  #define CARRO_ADD '1' // address del carro per comunicazioni LoRa
-  #define TRASLO_ADD '2' // address del traslo per comunicazioni LoRa
+  #define CARRO_ADD '2' // address del carro per comunicazioni LoRa
+  #define TRASLO_ADD '1' // address del traslo per comunicazioni LoRa
 
   char RS232_1_buffer_RX[LUN_BUF_232];
   //char RS232_1_buffer_TX[LUN_BUF_232]; // TODO toglierlo? Non è mai usato

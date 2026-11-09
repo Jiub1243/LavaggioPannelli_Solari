@@ -69,7 +69,21 @@ TODO alla fine della spazzolatura, se spazzola_OK allora stato = 1 anziché 0? P
 *                     11   xxx = Altezza settata
 *                     01   009 = Comando non eseguibile
 *
-* 
+*         13 = Set CORSA_M1M2   xxx = Nuovo modulo CORSA_M1M2 / 100 (salvata negativa)
+*                     13   xxx = Valore confermato
+*                     01   009 = Comando non eseguibile
+*
+*         14 = Set CORSA_M4     xxx = Nuovo valore CORSA_M4 / 1000
+*                     14   xxx = Valore confermato
+*                     01   009 = Comando non eseguibile
+*
+*         15 = RQST CORSA_M1M2  001 = Richiesta valore corrente
+*                     15   xxx = |CORSA_M1M2| / 100
+*
+*         16 = RQST CORSA_M4    001 = Richiesta valore corrente
+*                     16   xxx = CORSA_M4 / 1000
+*
+*
 *         
 *         
 * 
@@ -344,11 +358,11 @@ void esaminaMessaggio( void )
   }
 
   if(datiHost.comando == 11 ) {  // Settaggio Altezza Spazzolatura SX
-    if( datiHost.dato < 255 ) {
+    if( datiHost.dato <= 255 ) {
       Abbassamento_SX = datiHost.dato;
       EEPROM.write(513, Abbassamento_SX);
     }
-    if( datiHost.dato < 255 || datiHost.dato == 999 ) {
+    if( datiHost.dato <= 255 || datiHost.dato == 999 ) {
       Stato = Abbassamento_SX + 1000;
       DaSpedire = String( Stato );
       DaSpedire = DaSpedire.substring(1,4);
@@ -358,11 +372,11 @@ void esaminaMessaggio( void )
     else spedisciStringa("01009"); // Comando non eseguibile
   }
   if(datiHost.comando == 12 ) {  // Settaggio Altezza Spazzolatura DX
-    if( datiHost.dato < 255 ) {
+    if( datiHost.dato <= 255 ) {
       Abbassamento_DX = datiHost.dato;
       EEPROM.write(514, Abbassamento_DX);
     }
-    if( datiHost.dato < 255 || datiHost.dato == 999 ) {
+    if( datiHost.dato <= 255 || datiHost.dato == 999 ) {
       Stato = Abbassamento_DX + 1000;
       DaSpedire = String( Stato );
       DaSpedire = DaSpedire.substring(1,4);
@@ -370,6 +384,40 @@ void esaminaMessaggio( void )
       spedisciStringa(DaSpedire);
     }
     else spedisciStringa("01009"); // Comando non eseguibile
+  }
+
+  if (datiHost.comando == 13) { // Nuovo valore CORSA_M1M2 (modulo/100, salvata negativa)
+    if (STATO_CORRENTE == 0 && datiHost.dato > 0) {
+      CORSA_M1M2 = -((long)datiHost.dato * 100);
+      EEPROM.put(EE_ADDR_CORSA_M1M2, CORSA_M1M2);
+      char buf[6];
+      snprintf(buf, sizeof(buf), "13%03u", datiHost.dato);
+      spedisciStringa(buf); // conferma
+    } else spedisciStringa("01009"); // Comando non eseguibile
+  }
+
+  if (datiHost.comando == 14) { // Nuovo valore CORSA_M4 (valore/1000)
+    if (STATO_CORRENTE == 0 && datiHost.dato > 0) {
+      CORSA_M4 = (long)datiHost.dato * 1000;
+      EEPROM.put(EE_ADDR_CORSA_M4, CORSA_M4);
+      char buf[6];
+      snprintf(buf, sizeof(buf), "14%03u", datiHost.dato);
+      spedisciStringa(buf); // conferma
+    } else spedisciStringa("01009"); // Comando non eseguibile
+  }
+
+  if (datiHost.comando == 15) { // Richiesta CORSA_M1M2
+    char buf[6];
+    uint16_t val = (uint16_t)(-CORSA_M1M2 / 100);
+    snprintf(buf, sizeof(buf), "15%03u", val);
+    spedisciStringa(buf);
+  }
+
+  if (datiHost.comando == 16) { // Richiesta CORSA_M4
+    char buf[6];
+    uint16_t val = (uint16_t)(CORSA_M4 / 1000);
+    snprintf(buf, sizeof(buf), "16%03u", val);
+    spedisciStringa(buf);
   }
 }
 //

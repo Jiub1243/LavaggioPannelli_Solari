@@ -44,6 +44,14 @@ ho aggiornato l'assegnazione di Messaggio_OK in ReadDataFromAntenna
 *                     06   xxx = Valore confermato
 *                     01   009 = Comando non eseguibile
 *
+*         07 = Set passi0_M1           xxx = Nuovo valore passi0_M1 / 10 (tratto Zero -> colonna 1)
+*                     07   xxx = Valore confermato
+*                     01   009 = Comando non eseguibile
+*
+*         08 = Set passi0_M2           xxx = Nuovo valore passi0_M2 / 10 (tratto Zero -> colonna 1)
+*                     08   xxx = Valore confermato
+*                     01   009 = Comando non eseguibile
+*
 *         13 = RQST passi_Colonna_M1   001 = Richiesta valore corrente
 *                     13   xxx = passi_Colonna_M1 / 10
 *
@@ -52,7 +60,13 @@ ho aggiornato l'assegnazione di Messaggio_OK in ReadDataFromAntenna
 *
 *         15 = RQST maxCol             001 = Richiesta valore corrente
 *                     15   xxx = maxCol
-* 
+*
+*         16 = RQST passi0_M1          001 = Richiesta valore corrente
+*                     16   xxx = passi0_M1 / 10
+*
+*         17 = RQST passi0_M2          001 = Richiesta valore corrente
+*                     17   xxx = passi0_M2 / 10
+*
 */
 
 // Aspetta di ricevere il carattere 'MESS_START_MESS' prima di iniziare a registrare un messaggio
@@ -116,6 +130,14 @@ uint8_t ReadDataFromAntenna()
           if( memcmp( verifica, "+RCV=0,5," ,9 ) == 0 ) { // se abbiamo ricevuto 5 byte dal nodo 0, ricezione avvenuta con successo
             RS232_1_newData = true;
             ritorno = true;
+            Serial.print("DEBUG Antenna: messaggio valido ricevuto -> ");
+            Serial.println(RS232_1_buffer_RX);
+          } else {
+            Serial.print("DEBUG Antenna: mittente/formato non riconosciuto, verifica='");
+            Serial.print(verifica);
+            Serial.print("' buffer='");
+            Serial.print(RS232_1_buffer_RX);
+            Serial.println("'");
           }
           /*
           Serial.print( "  Verifica: " );
@@ -210,7 +232,7 @@ void esaminaMessaggio( void )
   Serial.println( datiHost.dato );
 
   if(datiHost.comando == 1 && datiHost.dato == 001) { // Richiesta Stato
-  if(STATO_CORRENTE == 3){ // Se spazzolatura in corso ...
+  if(STATO_CORRENTE == 3){ // Se movimento in corso ...
     Stato = Colonna+1000;
     DaSpedire = String( Stato );
     DaSpedire = DaSpedire.substring(1,4);
@@ -244,10 +266,19 @@ void esaminaMessaggio( void )
     Serial.println(STATO_CORRENTE);
   }
   
-  if(datiHost.comando == 3 ) { // aggiungi colonna xxx
+  if(datiHost.comando == 3 ) { // raggiungi colonna xxx
+    Serial.print("DEBUG cmd03: dato="); Serial.print(datiHost.dato);
+    Serial.print(" maxCol="); Serial.print(maxCol);
+    Serial.print(" Traslo_OK="); Serial.print(Traslo_OK);
+    Serial.print(" STATO_CORRENTE="); Serial.println(STATO_CORRENTE);
     if( datiHost.dato <= maxCol || datiHost.dato == 999 ) {
         if( datiHost.dato <= maxCol && Traslo_OK && !STATO_CORRENTE ) { // Colonne pannelli
+        //if( datiHost.dato <= maxCol && !STATO_CORRENTE ) { // TODO rimuovere questa riga e scommentare quella sopra
+        //Serial.println("DEBUG cmd03: non sto controllando Traslo_OK");
+        Serial.println("DEBUG cmd03: guardia OK, chiamo Vai_Alla_Colonna");
         if( ! Vai_Alla_Colonna(datiHost.dato) ) ;
+      } else {
+        Serial.println("DEBUG cmd03: guardia FALLITA, Vai_Alla_Colonna NON chiamata");
       }
       Stato = Colonna +1000;
       DaSpedire = String( Stato );
@@ -288,6 +319,26 @@ void esaminaMessaggio( void )
     } else spedisciStringa("01009");
   }
 
+  if (datiHost.comando == 7) { // Nuovo valore passi0_M1 (tratto Zero -> colonna 1)
+    if (STATO_CORRENTE == 0 && datiHost.dato > 0) {
+      passi0_M1 = (long)datiHost.dato * 10;
+      EEPROM.put(EE_ADDR_PASSI0_M1, passi0_M1);
+      char buf[6];
+      snprintf(buf, sizeof(buf), "07%03u", datiHost.dato);
+      spedisciStringa(buf); // conferma
+    } else spedisciStringa("01009");
+  }
+
+  if (datiHost.comando == 8) { // Nuovo valore passi0_M2 (tratto Zero -> colonna 1)
+    if (STATO_CORRENTE == 0 && datiHost.dato > 0) {
+      passi0_M2 = (long)datiHost.dato * 10;
+      EEPROM.put(EE_ADDR_PASSI0_M2, passi0_M2);
+      char buf[6];
+      snprintf(buf, sizeof(buf), "08%03u", datiHost.dato);
+      spedisciStringa(buf); // conferma
+    } else spedisciStringa("01009");
+  }
+
   if (datiHost.comando == 13) { // Richiesta passi_Colonna_M1
     char buf[6];
     uint16_t val = (uint16_t)(passi_Colonna_M1 / 10);
@@ -305,6 +356,20 @@ void esaminaMessaggio( void )
   if (datiHost.comando == 15) { // Richiesta maxCol
     char buf[6];
     snprintf(buf, sizeof(buf), "15%03u", maxCol);
+    spedisciStringa(buf);
+  }
+
+  if (datiHost.comando == 16) { // Richiesta passi0_M1
+    char buf[6];
+    uint16_t val = (uint16_t)(passi0_M1 / 10);
+    snprintf(buf, sizeof(buf), "16%03u", val);
+    spedisciStringa(buf);
+  }
+
+  if (datiHost.comando == 17) { // Richiesta passi0_M2
+    char buf[6];
+    uint16_t val = (uint16_t)(passi0_M2 / 10);
+    snprintf(buf, sizeof(buf), "17%03u", val);
     spedisciStringa(buf);
   }
 }

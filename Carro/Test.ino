@@ -64,8 +64,10 @@ void Posiziona_Avanzamento(uint8_t percentuale){
   }
 }
 
-// Segue la struttura di Rotazione_Spazzola(): se la spazzola non sta già girando aziona il driver e aspetta un secondo
-// Siccome Spazza() e Spazzolamento() non resettano stepper_M3.setSpeed(Velocita_Spazzola), useranno la velocità impostata con questo comando
+// Fa girare la spazzola a 'percentuale' % della velocità di default (Velocita_Spazzola), solo per la durata del test.
+// Rotazione_Spazzola() ripristina la velocità di default richiamando stepper_M3.setSpeed(Velocita_Spazzola),
+// quindi qui NON bisogna toccare Velocita_Spazzola stessa, altrimenti il "default" si riduce permanentemente
+// ad ogni test fatto a meno del 100% (bug precedente).
 void Imposta_Velocita(uint8_t percentuale){
   STATO_CORRENTE = 5;
   //spedisciStringa("01005");
@@ -73,26 +75,26 @@ void Imposta_Velocita(uint8_t percentuale){
 
   if(percentuale == 0) {
     stepper_M3.rotate(0);
-    while(stepper_M3.moving());
+    while(stepper_M3.moving()) Interrompi(); // continua ad ascoltare antenna/tasti mentre la spazzola rallenta
     digitalWrite(Accendi_Driver_M3, LOW);
     Spazzola = false;
     Velocita_Corrente_M3 = 0;
     Serial.println("Spazzola Fermata");
   }
   else {
-    Velocita_Spazzola  = ((uint32_t)Velocita_Spazzola * percentuale) / 100; // casto a int32 per non andare in overflow quando percentuale è 100
+    uint16_t velocitaTest = ((uint32_t)Velocita_Spazzola * percentuale) / 100; // casto a int32 per non andare in overflow quando percentuale è 100
     if(!Spazzola) {
       digitalWrite(Accendi_Driver_M3, HIGH);
-      delay(1000);
+      delay(1000); // delay cieco VOLUTO: durante l'accensione del driver il pin di errore non è affidabile e Interrompi() non deve campionarlo
     }
-    stepper_M3.setSpeed(Velocita_Spazzola );
+    stepper_M3.setSpeed(velocitaTest);
     stepper_M3.rotate(1);
-    while(!stepper_M3.moving());
-    delay(500);
-    Velocita_Corrente_M3 = Velocita_Spazzola ;
+    while(!stepper_M3.moving()) Interrompi(); // continua ad ascoltare antenna/tasti mentre la spazzola accelera
+    attesaAttivaTA(500);
+    Velocita_Corrente_M3 = velocitaTest;
     Spazzola = true;
-    Serial.print("Velocita Spazzola = ");
-    Serial.println(Velocita_Spazzola );
+    Serial.print("Velocita Spazzola (test) = ");
+    Serial.println(velocitaTest);
   }
 
   Serial.println("Test Velocita Spazzola Fine");

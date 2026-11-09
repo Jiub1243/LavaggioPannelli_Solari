@@ -16,49 +16,53 @@
 #include <EEPROM.h>
 #include "MyDef.h"
 
-LiquidCrystal_I2C lcd(LCD_ADR, 20, 4); // Definizione Display I2C 20 X 4
-I2CKeyPad keyPad(KEYPAD_ADDRESS); // Definizione Tastiera I2C
+//LiquidCrystal_I2C lcd(LCD_ADR, 20, 4); // Definizione Display I2C 20 X 4
+//I2CKeyPad keyPad(KEYPAD_ADDRESS); // Definizione Tastiera I2C
 
 void setup(){
 
-  lcd.init(); 
-  lcd.backlight();
+  //lcd.init(); 
+  //lcd.backlight();
 
-  Wire.begin();
-  Wire.setClock(400000);
+  //Wire.begin();
+  //Wire.setClock(400000);
 
   Serial.begin( 115200 );
-  while ( !Serial )
-  {
-    ; // wait for serial port to connect. Needed for native USB
-  }
 
-  if (keyPad.begin() == false)
+  
+  Serial.println("test 1");
+
+  //while ( !Serial )
+  //{
+  //  ; // wait for serial port to connect. Needed for native USB
+  //}
+
+  /*if (keyPad.begin() == false)
   {
     Serial.println("\nTastiera scollegata\n");
-  }
+  }*/
 
   //  M1 - Motore sollevamento Spazola SX --- 0-11520  (1mm =   Solleva 45 tic)
   //stepper_M1.attachEnable( EnaPin_M1, 10, LOW );
-  stepper_M1.attach( StepPin_M1, DirPin_M1 );
+  stepper_M1.attach( StepPin_M1, DirPin_M1, INV_DIR );
   stepper_M1.setSpeed( 2000 );             //2000 - 30 rev/min (if stepsPerRev is set correctly)
   stepper_M1.setRampLen( stepsPerRev / 8 ); // Ramp length is 1/8 revolution
 
-  //  M2 - Motore sollevamento Spazola DX --- 0-11520  (1mm =   Solleva 45 tic)
+  //  M2 - Motore sollevamento Spazzola DX --- 0-11520  (1mm =   Solleva 45 tic)
   //stepper_M2.attachEnable( EnaPin_M2, 10, LOW );
-  stepper_M2.attach( StepPin_M2, DirPin_M2 );
+  stepper_M2.attach( StepPin_M2, DirPin_M2, INV_DIR );
   stepper_M2.setSpeed( 2000 );             //2000 - 30 rev/min (if stepsPerRev is set correctly)
   stepper_M2.setRampLen( stepsPerRev / 8 ); // Ramp length is 1/8 revolution
 
   //  M3 - Motore Rotazione Spazzola
   stepper_M3.attachEnable( EnaPin_M3, 10, LOW );
-  stepper_M3.attach( StepPin_M3, DirPin_M3 );
+  stepper_M3.attach( StepPin_M3, DirPin_M3, INV_DIR );
   stepper_M3.setSpeed( Velocita_Spazzola );             // 3750
   stepper_M3.setRampLen( stepsPerRev / 2 ); // Ramp length is 1/2 revolution
 
   //  M4 - Motore Avanzamento Carro  --- 0-285500 (1mm = 28,5 tic )
   //stepper_M4.attachEnable( EnaPin_M4, 10, LOW ); // Commentare per FRENO
-  stepper_M4.attach( StepPin_M4, DirPin_M4 );
+  stepper_M4.attach( StepPin_M4, DirPin_M4, INV_DIR );
   stepper_M4.setSpeed( 1500 );             // 3750-1875 - 30 rev/min (if stepsPerRev is set correctly)
   stepper_M4.setRampLen( stepsPerRev ); // Ramp length is 4 revolution
 
@@ -86,7 +90,7 @@ void setup(){
   Serial.print( " " );
   Serial.println( __TIME__ );
   Serial.println( "*********************************************************" );
-  Homepage();
+  //Homepage();
   Serial1.begin( 115200 );
   Serial2.begin( 115200 );
   Serial3.begin( 115200 );
@@ -94,13 +98,22 @@ void setup(){
   spedisciStringa("HELLO");
   Abbassamento_SX = EEPROM.read(513);
   Abbassamento_DX = EEPROM.read(514);
+
+  long temp_corsa_M1M2;
+  long temp_corsa_M4;
+  EEPROM.get(EE_ADDR_CORSA_M1M2, temp_corsa_M1M2);
+  EEPROM.get(EE_ADDR_CORSA_M4, temp_corsa_M4);
+
+  // assegno i valori letti solo se superano il sanity check, altrimenti tengo i default (memoria vergine/corrotta)
+  if (temp_corsa_M1M2 < 0 && temp_corsa_M1M2 > -100000) CORSA_M1M2 = temp_corsa_M1M2; // negativa, modulo < 99900
+  if (temp_corsa_M4 > 0 && temp_corsa_M4 < 1000000)     CORSA_M4 = temp_corsa_M4;      // positiva < 999000
 }
 
 void loop(){
   //if( ! password()){
-    Test_01();
-    Serial.println( "Fine Test" );
-    Homepage();
+    //Test_01();
+    //Serial.println( "Fine Test" );
+    //Homepage();
   //}
 
   // Ricevuto messaggio wireless ?
@@ -110,28 +123,33 @@ void loop(){
   delay(100);
 }
 
-void Zero_Sollevatore(void){
+//Alza la spazzola fino alla posizione 0, che è la più alta
+// ritorna 0 se interrotto da STOP/tasto/errore (il chiamante NON deve proseguire alla fase successiva)
+// altrimenti ritorna 1
+uint8_t Zero_Sollevatore(void){
   int sensore_SX, sensore_DX, sensore_UP;
   uint8_t arresto;
   STATO_CORRENTE = 7;
+  Serial.println("DEBUG STATO_CORRENTE=7 assegnato in Zero_Sollevatore (ingresso funzione)");
   Serial.println("Zero Sollevamento");
   Posizione_M1 = 0;
   Posizione_M2 = 0;
   sensore_SX = digitalRead(Sens_Zero_M1);
   sensore_DX = digitalRead(Sens_Zero_M2);
-  if( sensore_SX ) stepper_M1.rotate(1);
-  if( sensore_DX ) stepper_M2.rotate(1);
+  if( sensore_SX ) stepper_M1.rotate(-1);
+  if( sensore_DX ) stepper_M2.rotate(-1);
+  Serial.println("DEBUG Zero_Sollevatore: entro nel loop");
   do{
     sensore_SX = digitalRead(Sens_Zero_M1);
     sensore_DX = digitalRead(Sens_Zero_M2);
     if(! sensore_SX) {
-      stepper_M1.stop();
+      stepper_M1.rotate(0);
       Posizione_M1 = 1;
       stepper_M1.setZero();
       //Serial2.print("R"); // Azzera il sensore altezza SX
     }
     if(! sensore_DX) {
-      stepper_M2.stop();
+      stepper_M2.rotate(0);
       Posizione_M2 = 1;
       stepper_M2.setZero();
       //Serial3.print("R"); // Azzera il sensore altezza DX
@@ -142,51 +160,74 @@ void Zero_Sollevatore(void){
     }
     arresto = Interrompi();
   } while ( ( stepper_M1.moving() || stepper_M2.moving() ) && arresto );
-  stepper_M1.rotate(0);
-  stepper_M2.rotate(0);
+  Serial.print("DEBUG Zero_Sollevatore: uscito dal loop, arresto="); Serial.println(arresto);
+  stepper_M1.stop();
+  stepper_M2.stop();
+  if (!arresto) { // interrotto da STOP/tasto/errore: fermati subito, non proseguire con le fasi successive
+    if (STATO_CORRENTE < 10) STATO_CORRENTE = 0; // non stomp-are un eventuale codice di errore driver
+    Serial.println("Zero Sollevamento interrotto");
+    return 0;
+  }
   //delay(1200);
   if( (Posizione_M1 == 0) || (Posizione_M2 == 0) ) Serial.println("Zero Sollevamento KO");
   else {
     Serial2.print("R"); // Azzera il sensore altezza SX
     Serial3.print("R"); // Azzera il sensore altezza DX
-    delay(500);
+    attesaAttivaTA(500); // continua ad ascoltare antenna/tasti invece di un delay cieco
   }
   STATO_CORRENTE = 0;
   Serial.println("Zero Sollevamento fatto");
+  return 1;
 }
 
-void Zero_Avanzamento(void){
+// Allinea il carro con il primo pannello
+// ritorna 0 se interrotto da STOP/tasto/errore (il chiamante NON deve proseguire alla fase successiva)
+// altrimenti ritorna 1
+uint8_t Zero_Avanzamento(void){
   uint8_t sensore_SX, sensore_DX, sensore_UP, arresto, Fault_M4;
+  Serial.println("DEBUG Zero_Avanzamento: entrato nella funzione");
   STATO_CORRENTE = 8;
+  Serial.println("DEBUG STATO_CORRENTE=8 assegnato in Zero_Avanzamento (ingresso funzione)");
   Posizione_M4 = 0;
   sensore_SX = digitalRead(Sens_Zero_M1);
   sensore_DX = digitalRead(Sens_Zero_M2);
+  Serial.print("DEBUG Zero_Avanzamento: sensore_SX="); Serial.print(sensore_SX);
+  Serial.print(" sensore_DX="); Serial.println(sensore_DX);
   if( sensore_SX || sensore_DX) {
-    Zero_Sollevatore();
-    STATO_CORRENTE = 8; 
+    Serial.println("DEBUG Zero_Avanzamento: chiamo Zero_Sollevatore() prima di avanzare");
+    if (! Zero_Sollevatore()) return 0; // interrotto durante lo zero del sollevatore: non proseguire con l'avanzamento
+    STATO_CORRENTE = 8;
+    Serial.println("DEBUG STATO_CORRENTE=8 riassegnato in Zero_Avanzamento (dopo Zero_Sollevatore)");
   }
   Serial.println("Zero Avanzamento");
   stepper_M4.setSpeed( VELOCITA_M4_ZERO );
   Accendi_M4();
   sensore_UP = digitalRead(Sens_Zero_M4);
-  if( sensore_UP ) stepper_M4.rotate(-1);
+  if( sensore_UP ) stepper_M4.rotate(1);
+  Serial.println("DEBUG Zero_Avanzamento: entro nel loop");
   do {
     sensore_UP = digitalRead(Sens_Zero_M4);
      if(! sensore_UP) {
+      //stepper_M4.rotate(0);
       stepper_M4.stop();
       stepper_M4.setSpeed( VELOCITA_M4_RITORNO );  // Aumenta velocità dopo lo 0
     }
     arresto = Interrompi();
   } while ( stepper_M4.moving() && arresto );
-  stepper_M4.rotate(0);
-  delay(100);
-  if(arresto){
-    Posizione_M4 = 1; // Posizione definita OK
-    stepper_M4.setZero();
-    Serial.println("Zero Avanzamento fatto");
+  Serial.print("DEBUG Zero_Avanzamento: uscito dal loop, arresto="); Serial.println(arresto);
+  stepper_M4.stop();
+  attesaAttivaTA(100); // continua ad ascoltare antenna/tasti invece di un delay cieco
+  if (!arresto) { // interrotto da STOP/tasto/errore: fermati subito
+    if (STATO_CORRENTE < 10) STATO_CORRENTE = 0;
+    Serial.println("Zero Avanzamento interrotto");
+    return 0;
   }
+  Posizione_M4 = 1; // Posizione definita OK
+  stepper_M4.setZero();
+  Serial.println("Zero Avanzamento fatto");
   //stepper_M4.setRampLen( stepsPerRev * 2); // Ramp length is 1/2 revolution
   STATO_CORRENTE = 0;
+  return 1;
 }
 
 void Accendi_M4(void){
@@ -194,7 +235,7 @@ void Accendi_M4(void){
   releAttivo = digitalRead(Accendi_Driver_M4);
   if(! releAttivo){
     digitalWrite(Accendi_Driver_M4, HIGH);
-    delay(1500);
+    delay(1500); // delay cieco VOLUTO: durante l'accensione del driver il pin di errore non è affidabile e Interrompi() non deve campionarlo
   }
   releAttivo = digitalRead(Collega_M4);
   if(! releAttivo){
@@ -207,19 +248,19 @@ void Accendi_M4(void){
 void Rotazione_Spazzola(){
   if(! Spazzola) {
     digitalWrite(Accendi_Driver_M3, HIGH);
-    delay(1000);
+    delay(1000); // delay cieco VOLUTO: durante l'accensione del driver il pin di errore non è affidabile e Interrompi() non deve campionarlo
     stepper_M3.setSpeed(Velocita_Spazzola);  // resetta a velocità default in caso abbiamo fatto un TEST velocità
     stepper_M3.rotate(1);
-    while (! stepper_M3.moving() );
+    while (! stepper_M3.moving() ) Interrompi(); // continua ad ascoltare antenna/tasti mentre la spazzola accelera
     //digitalWrite(Accendi_Driver_M3, LOW);
     Velocita_Corrente_M3 = Velocita_Spazzola;
   }
   else {
     stepper_M3.rotate(0);
-    while ( stepper_M3.moving() );
+    while ( stepper_M3.moving() ) Interrompi(); // continua ad ascoltare antenna/tasti mentre la spazzola rallenta
     Velocita_Corrente_M3 = 0;
   }
-  delay(500);
+  attesaAttivaTA(500);
   Spazzola = ! Spazzola;
 }
 
@@ -236,7 +277,7 @@ Errore_SP :
 uint8_t Spazzolatura(void)
 {
   uint8_t arresta, spazzola_OK, testAltezza;
-  lcd.clear();
+  //lcd.clear();
   digitalWrite(Accendi_Driver_M3, HIGH);  // Accendi Driver Spazzola
   digitalWrite(Ventola, HIGH ); // Accendi Ventola Quadro
   delay(1000);
@@ -245,14 +286,18 @@ uint8_t Spazzolatura(void)
   //  Serial.println("Zero Sollevamento");
   //  Zero_Sollevatore();
   //}
-  Zero_Sollevatore();
-  if(! Posizione_M4 ) Zero_Avanzamento();
+  if (! Zero_Sollevatore()) return(0); // interrotto: non proseguire con la sequenza di pulizia
+  if(! Posizione_M4 ) {
+    if (! Zero_Avanzamento()) return(0); // interrotto: non proseguire con la sequenza di pulizia
+  }
   STATO_CORRENTE = 4;
   if( Posizione_M1 && Posizione_M2 && Posizione_M4 ) {  //stepper_M4.setSpeed( 875 );
     Accendi_M4();
     testAltezza = Test_Altezza(10000); // Comincia da 10000 e torna indietro per non collidere le ruote "misura altezza"
     if ( ! testAltezza ){
-      STATO_CORRENTE = 15;
+      // Se STATO_CORRENTE è ancora 4 il fallimento è genuino (lettura altezza inattendibile);
+      // se è già stato cambiato (0=STOP utente, 10-14=errore driver) Interrompi() lo ha già gestito, non sovrascriverlo con un falso allarme 15
+      if (STATO_CORRENTE == 4) STATO_CORRENTE = 15;
       return(0);
     }
     
@@ -264,12 +309,12 @@ uint8_t Spazzolatura(void)
 
       testAltezza = Test_Altezza(6000); // Comincia da 6000 e torna indietro per non collidere le ruote "misura altezza"
       if ( ! testAltezza ){
-        STATO_CORRENTE = 15;
+        if (STATO_CORRENTE == 4) STATO_CORRENTE = 15;
         return(0);
       }
 
       do{
-        LCD_Spazzolatura();
+        //LCD_Spazzolatura();
         arresta = Interrompi();
       } while ( ( stepper_M1.moving() || stepper_M2.moving() || stepper_M4.moving() ) && arresta );
       stepper_M1.rotate(0);
@@ -292,36 +337,56 @@ uint8_t Spazzolatura(void)
 
 }
 
+// Attende 'ms' millisecondi continuando a chiamare Interrompi() (antenna/tasti/errori),
+// invece di un delay() cieco che lascia inascoltata l'antenna per tutta la durata.
+// ritorna 0 se interrotto da STOP/tasto/errore, altrimenti 1.
+uint8_t attesaAttivaTA(uint32_t ms) {
+  uint32_t start = millis();
+  uint8_t arresto = 1;
+  do {
+    arresto = Interrompi();
+    if (!arresto) return 0;
+  } while ( millis() - start < ms );
+  return 1;
+}
+
 uint8_t Test_Altezza(uint32_t Run_TO)
 {
   uint8_t contaLetture_SX, contaLetture_DX, ritorno = 0;
   long altezza_SX, altezza_DX;
   stepper_M4.write(Run_TO);
-  do{ } while ( stepper_M4.moving() && Interrompi() ); // attendi posizionamento M4
-  delay(150);
+  uint8_t arrestaTA;
+  do{ arrestaTA = Interrompi(); } while ( stepper_M4.moving() && arrestaTA ); // attendi posizionamento M4
+  if (!arrestaTA) { stepper_M4.stop(); return 0; } // interrotto da STOP/tasto/errore: non proseguire con la lettura altezza
+  if (!attesaAttivaTA(150)) return 0;
   Serial.print("Test Altezza ... Altezza SX = ");
-  do{ 
+  do{
     altezza_SX = Leggi_Altezza_SX();
     contaLetture_SX++;
     Serial.print(altezza_SX);
     Serial.print(" ... ");
-    delay(1000);
+    if (!attesaAttivaTA(1000)) return 0;
   } while ( altezza_SX > 100  && contaLetture_SX < 6 );
   Serial.println(" ");
   Serial.print("Test Altezza ... Altezza DX = ");
-  do{ 
+  do{
     altezza_DX = Leggi_Altezza_DX();
     contaLetture_DX++;
     Serial.print(altezza_DX);
     Serial.print(" ... ");
-    delay(1000);
+    if (!attesaAttivaTA(1000)) return 0;
   } while ( altezza_DX > 100  && contaLetture_DX < 6 );
   Serial.println(" ");
-  delay(100);
+  if (!attesaAttivaTA(100)) return 0;
   stepper_M1.write(ALTEZZA_M1); // -2500
   stepper_M2.write(ALTEZZA_M2); // -2500
-  do{ } while ( stepper_M1.moving() && stepper_M2.moving() && Interrompi() ); // attendi posizionamento M1 e M2
-  
+  do{ arrestaTA = Interrompi(); } while ( stepper_M1.moving() && stepper_M2.moving() && arrestaTA ); // attendi posizionamento M1 e M2
+  if (!arrestaTA) {
+    stepper_M1.stop();
+    stepper_M2.stop();
+    return 0; // interrotto: non proseguire con la lettura altezza
+  }
+
   contaLetture_SX = 0;
   Serial.print("Altezza Appoggiato ... Altezza SX = ");
   do{
@@ -329,7 +394,7 @@ uint8_t Test_Altezza(uint32_t Run_TO)
     contaLetture_SX++;
     Serial.print(altezza_SX);
     Serial.print(" ... ");
-    delay(1000);
+    if (!attesaAttivaTA(1000)) return 0;
   } while ( ( altezza_SX < 800 || altezza_SX > 1100 ) && ( contaLetture_SX < 6 ) );
 
   contaLetture_DX = 0;
@@ -340,7 +405,7 @@ uint8_t Test_Altezza(uint32_t Run_TO)
     contaLetture_DX++;
     Serial.print(altezza_DX);
     Serial.print(" ... ");
-    delay(1000);
+    if (!attesaAttivaTA(1000)) return 0;
   } while ( ( altezza_DX < 800 || altezza_DX > 1100 ) && ( contaLetture_DX < 6 ) );
   Serial.println(" ");
   if( contaLetture_SX < 5 &&  contaLetture_DX < 5 ) ritorno = 1;
@@ -348,14 +413,14 @@ uint8_t Test_Altezza(uint32_t Run_TO)
   return(ritorno);
 }
 
-uint8_t Spazza(uint32_t Run_TO)
+uint8_t Spazza(uint32_t Run_TO) // TODO verificare il segno di step1 e step2
 {
   long old_altezza_1, old_altezza_2, P_M4, Cor_M1, Cor_M2, altezza_1, altezza_2, step1, step2;
   uint8_t arresta, Sens_M4;
   static uint8_t altezza_1_KO, altezza_2_KO, Errore_SP;
   int SX_OK=0, DX_OK=0;
   bool avanti = 0, raggiunto = 0;
-  lcd.clear();
+  //lcd.clear();
 
   //Serial.print("Inizio Spazzolatura ... verso -> ");
   //Serial.println(Run_TO);
@@ -372,7 +437,7 @@ uint8_t Spazza(uint32_t Run_TO)
   altezza_1 = 0;
   altezza_2 = 0;
   do{
-    LCD_Spazzolatura ();
+    //LCD_Spazzolatura ();
     Sens_M4= digitalRead(OltreCorsa_M4);
     if( ! Sens_M4 ) stepper_M4.stop( );
     altezza_1_KO = 0;
@@ -476,14 +541,18 @@ uint8_t Spazza(uint32_t Run_TO)
   STATO_CORRENTE = 3;
   //stepper_M1.write(0);
   //stepper_M2.write(0);
-  Zero_Sollevatore();
+  if (! Zero_Sollevatore()) return(0); // interrotto: non proseguire con il ritorno carro
   stepper_M4.write(2000); // Ritorno Carro
   do{
-    LCD_Spazzolatura ();
+    //LCD_Spazzolatura ();
     arresta = Interrompi();
     Sens_M4 = digitalRead(Sens_Zero_M4);
     if(! Sens_M4) stepper_M4.stop( );
   } while ( ( stepper_M4.moving() ) && arresta );
+  if (!arresta) { // interrotto da STOP/tasto/errore: fermati subito, non proseguire al riposizionamento M1/M2
+    stepper_M4.stop();
+    return(0);
+  }
   stepper_M1.write(20);
   stepper_M2.write(20);
   do { 
@@ -502,8 +571,8 @@ uint8_t Interrompi(void) {
   uint8_t customKey, rele_spazzola, rele_avanzamento;
   uint8_t errore_M1, errore_M2, errore_M3, errore_M4, finecorsa;
   bool ritorno=1;
-  customKey = GetKey();
-  if(customKey != ' ' ) ritorno = 0;
+  //customKey = GetKey();
+  //if(customKey != ' ' ) ritorno = 0;
   finecorsa= digitalRead(OltreCorsa_M4);
   if( stepper_M4.moving() && (! finecorsa) ) {
     stepper_M4.stop( );
@@ -513,9 +582,9 @@ uint8_t Interrompi(void) {
   }
   
   errore_M1 = digitalRead( Error_Driver_M1 );
-  if (errore_M1) STATO_CORRENTE = 10;
+  if ( errore_M1) STATO_CORRENTE = 10; // TODO ! errore_M1 o senza ! ?
   errore_M2 = digitalRead( Error_Driver_M2 );
-  if (errore_M2) STATO_CORRENTE = 11;
+  if ( errore_M2) STATO_CORRENTE = 11; // TODO ! errore_M2 o senza ! ?
   rele_spazzola = digitalRead(Accendi_Driver_M3);
   if(rele_spazzola) {
     errore_M3 = digitalRead( Error_Driver_M3 );
@@ -531,7 +600,16 @@ uint8_t Interrompi(void) {
     Serial.print("STATO_CORRENTE = ");
     Serial.println(STATO_CORRENTE);
   }
-  if (ReadDataFromAntenna()) {
+  uint8_t byteInAttesa = Serial1.available();
+  uint8_t antennaHaMessaggio = ReadDataFromAntenna();
+  if (byteInAttesa > 0 || antennaHaMessaggio || ARRESTA) {
+    Serial.print("DEBUG Interrompi:");
+    Serial.print(" Serial1.available()="); Serial.print(byteInAttesa);
+    Serial.print(" ReadDataFromAntenna()="); Serial.print(antennaHaMessaggio);
+    Serial.print(" ARRESTA="); Serial.println(ARRESTA);
+  }
+  if (antennaHaMessaggio) {
+    Serial.println("antenna ha messaggio");
     if ( parseAntenna() ) esaminaMessaggio();  // esamina messaggio seriale
     RS232_1_newData = false;
   }

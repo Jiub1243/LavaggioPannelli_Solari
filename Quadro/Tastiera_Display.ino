@@ -74,7 +74,7 @@ bool slavesInMovimento() {
 // Da chiamare nel loop interno di Test_01(), prima di processare customKey per i menu
 // Ritorna 1 se il tasto è da usare per inviare un messaggio di STOP, 0 altrimenti
 uint8_t controllaTastoStop(char customKey) {
-  if (customKey == ' ' ||customKey == 'A' ||customKey == 'B') return 0; // nessun tasto premuto
+  if (customKey == ' ' ||customKey == 'A' || customKey == 'B' || customKey == 'D' || customKey == '1') return 0; // nessun tasto interessante premuto
   /*Serial.print("STATO_CORRENTE_TRASLO: ");
   Serial.println(STATO_CORRENTE_TRASLO);
   Serial.print("STATO_CORRENTE_CARRO: ");
@@ -86,6 +86,20 @@ uint8_t controllaTastoStop(char customKey) {
   if (!slavesInMovimento()) return 0; // nessuno slave in movimento
 
   return 1;
+}
+
+// Tiene il messaggio corrente sul display per 'ms' millisecondi ma continua ad
+// ascoltare l'antenna: così non perdiamo la risposta dello slave, che arriva
+// subito dopo l'invio del comando (prima era persa durante il delay() cieco).
+void attesaAttiva(uint32_t ms) {
+  uint32_t start = millis();
+  while (millis() - start < ms) {
+    if (ReadDataFromAntenna()) {
+      if (parseAntenna()) esaminaMessaggio();
+    }
+    controllaRisposta();
+    controllaConnessione();
+  }
 }
 
 //*/
@@ -188,6 +202,12 @@ uint8_t chiediColonna() {
 
 // Funzione più generale di chiediColonna che richiede una stringa con il come della variabile da assegnare e gli estremi dell'insieme dei vaolir possibili
 uint16_t chiediValore(const char* label, uint16_t minVal, uint16_t maxVal) {
+  return chiediValore(label, minVal, maxVal, NULL, NULL);
+}
+
+// Variante che mostra anche due righe informative (riga2 -> 3a riga, riga3 -> 4a riga del display).
+// Utile per le pagine TEST del Carro, dove mostriamo il valore corrente mentre si inserisce il nuovo.
+uint16_t chiediValore(const char* label, uint16_t minVal, uint16_t maxVal, const char* riga2, const char* riga3) {
   uint16_t val = 0;
   uint8_t digits = 0;
   uint8_t key;
@@ -199,6 +219,8 @@ uint16_t chiediValore(const char* label, uint16_t minVal, uint16_t maxVal) {
   lcd.print("Valore: ");
   lcd.setCursor(8, 1);
   lcd.print("___");
+  if (riga2) { lcd.setCursor(0, 2); lcd.print(riga2); }
+  if (riga3) { lcd.setCursor(0, 3); lcd.print(riga3); }
 
   do {
     // Ascoltiamo mentre aspettiamo che venga inserito un numero
@@ -233,7 +255,7 @@ uint16_t chiediValore(const char* label, uint16_t minVal, uint16_t maxVal) {
     lcd.clear();
     lcd.setCursor(0, 1);
     lcd.print("Valore non valido!");
-    delay(1000);
+    attesaAttiva(1000);
     return 0xFFFF;
   }
 
@@ -473,6 +495,7 @@ void pulisciTutto() {
   // In caso di STOP o errore, manda arresto a entrambi
   if (stato != PT_COMPLETATO) {
     spedisciStringa("02003", TRASLO_ADD);
+    delay(300); // il modulo LoRa ha bisogno di tempo tra due AT+SEND consecutivi (di più se il primo destinatario è offline), altrimenti il secondo può essere perso/corrotto
     spedisciStringa("02003", CARRO_ADD);
     Attesa_Risposta = false;
     Tentativi_Invio = 0;
@@ -611,6 +634,53 @@ void Display_Test(uint8_t pagina){
       lcd.print("3 RQST maxCol       "); // RQST maxCol
       }
       break;
+
+    case 9 : { // Carro - Set Corse massime
+      lcd.clear();
+      lcd.setCursor(0,0);
+      lcd.print("1 C.Sollev:         "); // Set CORSA_M1M2
+      lcd.setCursor(11,0);
+      lcd.print(CORSA_M1M2);
+
+      lcd.setCursor(0,1);
+      lcd.print("2 C.Avanz.:         "); // Set CORSA_M4
+      lcd.setCursor(11,1);
+      lcd.print(CORSA_M4);
+
+      lcd.setCursor(0,3);
+      lcd.print("Set Corse Carro     ");
+      }
+      break;
+
+    case 10 : { // Carro - Richiesta Corse massime
+      lcd.clear();
+      lcd.setCursor(0,0);
+      lcd.print("1 RQST Corsa Sollev "); // RQST CORSA_M1M2
+
+      lcd.setCursor(0,1);
+      lcd.print("2 RQST Corsa Avanz. "); // RQST CORSA_M4
+      }
+      break;
+
+    case 11 : { // Traslo - Offset Zero -> Colonna 1
+      lcd.clear();
+      lcd.setCursor(0,0);
+      lcd.print("1 Passi0 M1:        "); // Set passi0_M1
+      lcd.setCursor(13,0);
+      lcd.print(passi0_M1);
+
+      lcd.setCursor(0,1);
+      lcd.print("2 Passi0 M2:        "); // Set passi0_M2
+      lcd.setCursor(13,1);
+      lcd.print(passi0_M2);
+
+      lcd.setCursor(0,2);
+      lcd.print("3 RQST Passi0 M1    ");
+
+      lcd.setCursor(0,3);
+      lcd.print("4 RQST Passi0 M2    ");
+      }
+      break;
     }
 }
 
@@ -739,6 +809,7 @@ void Test_01(){
       if (controllaTastoStop(customKey)){
         // Manda STOP a entrambi con spedisciStringa perché inviaConRisposta gestisce solo un dispositivo alla volta
         spedisciStringa("02003", TRASLO_ADD);
+        delay(300); // il modulo LoRa ha bisogno di tempo tra due AT+SEND consecutivi (di più se il primo destinatario è offline), altrimenti il secondo può essere perso/corrotto
         spedisciStringa("02003", CARRO_ADD);
 
         // Pulisce lo stato di retry in corso
@@ -749,7 +820,7 @@ void Test_01(){
         lcd.clear();
         lcd.setCursor(0, 1);
         lcd.print("STOP inviato...     ");
-        delay(1000);
+        attesaAttiva(1000);
         Display_Test(pagina_test);
 
         customKey = ' ';
@@ -807,7 +878,7 @@ void Test_01(){
               lcd.clear();
               lcd.setCursor( 0, 1 );
               lcd.print( "Pulizia Completa    " );
-              delay(1000);
+              attesaAttiva(1000);
               pulisciTutto();
               Display_Test( pagina_test );
             }
@@ -833,7 +904,7 @@ void Test_01(){
           
           case '1': // Richiesta stato
             inviaConRisposta( "01001", TRASLO_ADD ); // per questa richiesta di stato uso inviaConRisposta invece di spedisciStringa perché voglio una risposta immediata
-            delay(1000);
+            attesaAttiva(1000);
             Display_Test( pagina_test ); // ricaricao la pagina per mostrare il nuovo stato, se è cambiato
             break;
           
@@ -855,7 +926,7 @@ void Test_01(){
             lcd.clear();
             lcd.setCursor( 0, 1 );
             lcd.print( "Zero Traslo... " );
-            delay(1000);
+            attesaAttiva(1000);
             Display_Test( pagina_test );
             break;
 
@@ -865,7 +936,7 @@ void Test_01(){
             lcd.clear();
             lcd.setCursor( 0, 1 );
             lcd.print( "Ferma tutto... " );
-            delay(1000);
+            attesaAttiva(1000);
             Display_Test( pagina_test );
             break;
 
@@ -889,7 +960,7 @@ void Test_01(){
           
           case '1': // Richiesta stato
             inviaConRisposta( "01001", CARRO_ADD ); // per questa richiesta di stato uso inviaConRisposta invece di spedisciStringa perché voglio una risposta immediata
-            delay(1000);
+            attesaAttiva(1000);
             Display_Test( pagina_test ); // ricaricao la pagina per mostrare il nuovo stato, se è cambiato
             break;
           
@@ -898,7 +969,7 @@ void Test_01(){
             lcd.clear();
             lcd.setCursor( 0, 1 );
             lcd.print( "Zero Avanz... " );
-            delay(1000);
+            attesaAttiva(1000);
             Display_Test( pagina_test );
             break;
 
@@ -907,7 +978,7 @@ void Test_01(){
             lcd.clear();
             lcd.setCursor( 0, 1 );
             lcd.print( "Zero Sollev... " );
-            delay(1000);
+            attesaAttiva(1000);
             Display_Test( pagina_test );
             break;
 
@@ -917,7 +988,7 @@ void Test_01(){
             lcd.clear();
             lcd.setCursor( 0, 1 );
             lcd.print( "Ferma tutto... " );
-            delay(1000);
+            attesaAttiva(1000);
             Display_Test( pagina_test );
             
             break;
@@ -947,13 +1018,21 @@ void Test_01(){
             lcd.print( "Pulizia Col " );
             lcd.print( Colonna );
             lcd.print( "...   " );
-            delay(1000);
+            attesaAttiva(1000);
             Display_Test( pagina_test );
             break;
 
           case '2': // Test Sollevatore
             {
-              uint16_t val = chiediValore( "Test Sollevatore %", 0, 100 );
+              // Leggo i valori correnti SX/DX da mostrare durante l'inserimento
+              spedisciStringa( "07001", CARRO_ADD );
+              attesaAttiva(700);
+              spedisciStringa( "08001", CARRO_ADD );
+              attesaAttiva(700);
+              char rigaSX[21], rigaDX[21];
+              snprintf( rigaSX, sizeof(rigaSX), "Altezza SX: %u %%", altezza_Sollevatore_SX );
+              snprintf( rigaDX, sizeof(rigaDX), "Altezza DX: %u %%", altezza_Sollevatore_DX );
+              uint16_t val = chiediValore( "Test Sollevatore %", 0, 100, rigaSX, rigaDX );
               if( val != 0xFFFF ) {
                 char buf[6];
                 snprintf( buf, sizeof(buf), "04%03u", val );
@@ -965,7 +1044,11 @@ void Test_01(){
 
           case '3': // Test Avanzamento
             {
-              uint16_t val = chiediValore( "Test Avanzamento %", 0, 100 );
+              spedisciStringa( "09001", CARRO_ADD );
+              attesaAttiva(700);
+              char riga[21];
+              snprintf( riga, sizeof(riga), "Attuale: %u %%", perc_Avanzamento );
+              uint16_t val = chiediValore( "Test Avanzamento %", 0, 100, NULL, riga );
               if( val != 0xFFFF ) {
                 char buf[6];
                 snprintf( buf, sizeof(buf), "05%03u", val );
@@ -977,7 +1060,11 @@ void Test_01(){
 
           case '4': // Test Spazzola
             {
-              uint16_t val = chiediValore( "Test Spazzola %   ", 0, 100 );
+              spedisciStringa( "10001", CARRO_ADD );
+              attesaAttiva(700);
+              char riga[21];
+              snprintf( riga, sizeof(riga), "Attuale: %u %%", perc_Spazzola );
+              uint16_t val = chiediValore( "Test Spazzola %   ", 0, 100, NULL, riga );
               if( val != 0xFFFF ) {
                 char buf[6];
                 snprintf( buf, sizeof(buf), "06%03u", val );
@@ -1009,7 +1096,7 @@ void Test_01(){
             lcd.clear();
             lcd.setCursor( 0, 1 );
             lcd.print( "RQST Sollev. SX..." );
-            delay(1000);
+            attesaAttiva(1000);
             Display_Test( pagina_test );
             break;
 
@@ -1018,7 +1105,7 @@ void Test_01(){
             lcd.clear();
             lcd.setCursor( 0, 1 );
             lcd.print( "RQST Sollev. DX..." );
-            delay(1000);
+            attesaAttiva(1000);
             Display_Test( pagina_test );
             break;
 
@@ -1027,7 +1114,7 @@ void Test_01(){
             lcd.clear();
             lcd.setCursor( 0, 1 );
             lcd.print( "RQST Avanzamento..." );
-            delay(1000);
+            attesaAttiva(1000);
             Display_Test( pagina_test );
             break;
 
@@ -1036,7 +1123,7 @@ void Test_01(){
             lcd.clear();
             lcd.setCursor( 0, 1 );
             lcd.print( "RQST Spazzola...  " );
-            delay(1000);
+            attesaAttiva(1000);
             Display_Test( pagina_test );
             break;
 
@@ -1057,7 +1144,12 @@ void Test_01(){
 
           case '1': // Set Spazzola SX
             {
-              uint16_t val = chiediValore( "Altezza Spazzola SX", 0, 255 );
+              // dato=999 chiede al Carro il valore attualmente impostato (senza modificarlo)
+              spedisciStringa( "11999", CARRO_ADD );
+              attesaAttiva(700);
+              char riga[21];
+              snprintf( riga, sizeof(riga), "Attuale: %u", abbassamento_SX );
+              uint16_t val = chiediValore( "Altezza Spazzola SX", 0, 255, NULL, riga );
               if( val != 0xFFFF ) {
                 char buf[6];
                 snprintf( buf, sizeof(buf), "11%03u", val );
@@ -1069,7 +1161,11 @@ void Test_01(){
 
           case '2': // Set Spazzola DX
             {
-              uint16_t val = chiediValore( "Altezza Spazzola DX", 0, 255 );
+              spedisciStringa( "12999", CARRO_ADD );
+              attesaAttiva(700);
+              char riga[21];
+              snprintf( riga, sizeof(riga), "Attuale: %u", abbassamento_DX );
+              uint16_t val = chiediValore( "Altezza Spazzola DX", 0, 255, NULL, riga );
               if( val != 0xFFFF ) {
                 char buf[6];
                 snprintf( buf, sizeof(buf), "12%03u", val );
@@ -1098,7 +1194,7 @@ void Test_01(){
             lcd.clear();
             lcd.setCursor( 0, 1 );
             lcd.print( "RQST Passi M1...   " );
-            delay(1000);
+            attesaAttiva(1000);
             Display_Test( pagina_test );
             break;
 
@@ -1107,7 +1203,7 @@ void Test_01(){
             lcd.clear();
             lcd.setCursor( 0, 1 );
             lcd.print( "RQST Passi M2...   " );
-            delay(1000);
+            attesaAttiva(1000);
             Display_Test( pagina_test );
             break;
 
@@ -1116,7 +1212,142 @@ void Test_01(){
             lcd.clear();
             lcd.setCursor( 0, 1 );
             lcd.print( "RQST maxCol...     " );
-            delay(1000);
+            attesaAttiva(1000);
+            Display_Test( pagina_test );
+            break;
+
+          case 'A':
+            if( pagina_test < MAX_PAG ) pagina_test++; else pagina_test = 1;
+            break;
+
+          case 'B':
+            if( pagina_test > 1 ) pagina_test--; else pagina_test = MAX_PAG;
+            break;
+
+          case 'D': pagina_test = 0; break;
+        }
+        break;
+
+      case 9: // Carro - Set Corse massime
+        switch( customKey ) {
+
+          case '1': // Set CORSA_M1M2 (modulo, /100)
+            {
+              uint16_t val = chiediValore( "Corsa Sollev /100", 1, 999 );
+              if( val != 0xFFFF ) {
+                char buf[6];
+                CORSA_M1M2_da_confermare = (long)val * 100;
+                snprintf( buf, sizeof(buf), "13%03u", val );
+                inviaConRisposta( buf, CARRO_ADD );
+              }
+              Display_Test( pagina_test );
+            }
+            break;
+
+          case '2': // Set CORSA_M4 (/1000)
+            {
+              uint16_t val = chiediValore( "Corsa Avanz /1000", 1, 999 );
+              if( val != 0xFFFF ) {
+                char buf[6];
+                CORSA_M4_da_confermare = (long)val * 1000;
+                snprintf( buf, sizeof(buf), "14%03u", val );
+                inviaConRisposta( buf, CARRO_ADD );
+              }
+              Display_Test( pagina_test );
+            }
+            break;
+
+          case 'A':
+            if( pagina_test < MAX_PAG ) pagina_test++; else pagina_test = 1;
+            break;
+
+          case 'B':
+            if( pagina_test > 1 ) pagina_test--; else pagina_test = MAX_PAG;
+            break;
+
+          case 'D': pagina_test = 0; break;
+        }
+        break;
+
+      case 10: // Carro - Richiesta Corse massime
+        switch( customKey ) {
+
+          case '1': // RQST CORSA_M1M2
+            inviaConRisposta( "15001", CARRO_ADD );
+            lcd.clear();
+            lcd.setCursor( 0, 1 );
+            lcd.print( "RQST Corsa Sollev.." );
+            attesaAttiva(1000);
+            Display_Test( pagina_test );
+            break;
+
+          case '2': // RQST CORSA_M4
+            inviaConRisposta( "16001", CARRO_ADD );
+            lcd.clear();
+            lcd.setCursor( 0, 1 );
+            lcd.print( "RQST Corsa Avanz..." );
+            attesaAttiva(1000);
+            Display_Test( pagina_test );
+            break;
+
+          case 'A':
+            if( pagina_test < MAX_PAG ) pagina_test++; else pagina_test = 1;
+            break;
+
+          case 'B':
+            if( pagina_test > 1 ) pagina_test--; else pagina_test = MAX_PAG;
+            break;
+
+          case 'D': pagina_test = 0; break;
+        }
+        break;
+
+      case 11: // Traslo - Offset Zero -> Colonna 1
+        switch( customKey ) {
+
+          case '1': // Set passi0_M1
+            {
+              uint16_t val = chiediValore( "Passi0 M1 / 10", 1, 10000 );
+              if( val != 0xFFFF ) {
+                char buf[6];
+                if (val > 999) {val = val / 10;}
+                passi0_M1_da_confermare = (long)val * 10;
+                snprintf( buf, sizeof(buf), "07%03u", val );
+                inviaConRisposta( buf, TRASLO_ADD );
+              }
+              Display_Test( pagina_test );
+            }
+            break;
+
+          case '2': // Set passi0_M2
+            {
+              uint16_t val = chiediValore( "Passi0 M2 / 10", 1, 10000 );
+              if( val != 0xFFFF ) {
+                char buf[6];
+                if (val > 999) {val = val / 10;}
+                passi0_M2_da_confermare = (long)val * 10;
+                snprintf( buf, sizeof(buf), "08%03u", val );
+                inviaConRisposta( buf, TRASLO_ADD );
+              }
+              Display_Test( pagina_test );
+            }
+            break;
+
+          case '3': // RQST passi0_M1
+            inviaConRisposta( "16001", TRASLO_ADD );
+            lcd.clear();
+            lcd.setCursor( 0, 1 );
+            lcd.print( "RQST Passi0 M1...  " );
+            attesaAttiva(1000);
+            Display_Test( pagina_test );
+            break;
+
+          case '4': // RQST passi0_M2
+            inviaConRisposta( "17001", TRASLO_ADD );
+            lcd.clear();
+            lcd.setCursor( 0, 1 );
+            lcd.print( "RQST Passi0 M2...  " );
+            attesaAttiva(1000);
             Display_Test( pagina_test );
             break;
 
